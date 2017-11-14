@@ -24,7 +24,7 @@ namespace EFCoreFluent
             var cmd = context.Database.GetDbConnection().CreateCommand();
             if (prependDefaultSchema)
             {
-                var schemaName = context.Model.FindAnnotation("Relational:DefaultSchema")?.Value;
+                var schemaName = context.Model.Relational().DefaultSchema;
                 if (schemaName != null)
                 {
                     storedProcName = $"{schemaName}.{storedProcName}";
