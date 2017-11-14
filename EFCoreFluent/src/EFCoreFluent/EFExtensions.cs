@@ -15,12 +15,22 @@ namespace EFCoreFluent
         /// <summary>
         /// Creates an initial DbCommand object based on a stored procedure name
         /// </summary>
-        /// <param name="context"></param>
-        /// <param name="storedProcName"></param>
+        /// <param name="context">target database context</param>
+        /// <param name="storedProcName">target procedure name</param>
+        /// <param name="prependDefaultSchema">Prepend the default schema name to <paramref name="storedProcName"/> if explicitly defined in <paramref name="context"/></param>
         /// <returns></returns>
-        public static DbCommand LoadStoredProc(this DbContext context, string storedProcName)
+        public static DbCommand LoadStoredProc(this DbContext context, string storedProcName, bool prependDefaultSchema = true)
         {
             var cmd = context.Database.GetDbConnection().CreateCommand();
+            if (prependDefaultSchema)
+            {
+                var schemaName = context.Model.FindAnnotation("Relational:DefaultSchema")?.Value;
+                if (schemaName != null)
+                {
+                    storedProcName = $"{schemaName}.{storedProcName}";
+                }
+
+            }
             cmd.CommandText = storedProcName;
             cmd.CommandType = System.Data.CommandType.StoredProcedure;
             return cmd;
@@ -75,6 +85,11 @@ namespace EFCoreFluent
                 return MapToList<T>(_reader);
             }
 
+            public T? ReadToValue<T>() where T : struct
+            {
+                return MapToValue<T>(_reader);
+            }
+
             public Task<bool> NextResultAsync()
             {
                 return _reader.NextResultAsync();
@@ -121,7 +136,20 @@ namespace EFCoreFluent
                 return objList;
             }
 
-
+            /// <summary>
+            ///Attempts to read the first value of the first row of the resultset.
+            /// </summary>
+            private T? MapToValue<T>(DbDataReader dr) where T : struct
+            {
+                if (dr.HasRows)
+                {
+                    if (dr.Read())
+                    {
+                        return dr.IsDBNull(0) ? new T?() : new T?(dr.GetFieldValue<T>(0));
+                    }
+                }
+                return new T?();
+            }
         }
 
         /// <summary>
@@ -143,7 +171,7 @@ namespace EFCoreFluent
                     command.Connection.Open();
                 try
                 {
-                    using (var reader = command.ExecuteReader())
+                    using (var reader = command.ExecuteReader(commandBehaviour))
                     {
                         var sprocResults = new SprocResults(reader);
                         // return new SprocResults();
@@ -157,5 +185,36 @@ namespace EFCoreFluent
             }
         }
 
+        /// <summary>
+        /// Executes a DbDataReader asynchronously and returns a list of mapped column values to the properties of <typeparamref name="T"/>.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="command"></param>
+        /// <returns></returns>
+        public async static Task ExecuteStoredProcAsync(this DbCommand command, Action<SprocResults> handleResults, System.Data.CommandBehavior commandBehaviour = System.Data.CommandBehavior.Default, CancellationToken ct = default(CancellationToken))
+        {
+            if (handleResults == null)
+            {
+                throw new ArgumentNullException(nameof(handleResults));
+            }
+
+            using (command)
+            {
+                if (command.Connection.State == System.Data.ConnectionState.Closed)
+                    await command.Connection.OpenAsync(ct).ConfigureAwait(false);
+                try
+                {
+                    using (var reader = await command.ExecuteReaderAsync(commandBehaviour, ct).ConfigureAwait(false))
+                    {
+                        var sprocResults = new SprocResults(reader);
+                        handleResults(sprocResults);
+                    }
+                }
+                finally
+                {
+                    command.Connection.Close();
+                }
+            }
+        }
     }
 }
