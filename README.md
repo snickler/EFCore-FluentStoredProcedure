@@ -1,12 +1,16 @@
-# FluentEFCoreMapping
-Fluent Methods for mapping in EFCore
+# Snickler.EFCore
+Fluent Methods for mapping Stored Procedure results to objects in EntityFrameworkCore
+
+
+
+[![NuGet](https://img.shields.io/nuget/v/Snickler.EFCore.svg)](https://www.nuget.org/packages/Snickler.EFCore)
 
 
 ## Usage
 
 ### Executing A Stored Procedure
 
-Add the `using` statement to pull in the extension method. E.g: `using EFCoreFluent`
+Add the `using` statement to pull in the extension method. E.g: `using Snickler.EFCore`
 
 ```csharp
 
