@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.26403.7
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EFCoreFluent", "src\EFCoreFluent\EFCoreFluent.csproj", "{176191B5-C07B-4476-A213-416F122274BB}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Snickler.EFCore", "src\EFCoreFluent\Snickler.EFCore.csproj", "{176191B5-C07B-4476-A213-416F122274BB}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -18,5 +18,8 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {D4190F00-F00E-4E37-8A65-A0B42B135CCA}
 	EndGlobalSection
 EndGlobal
