@@ -49,7 +49,7 @@ namespace Snickler.EFCore
 
             var param = cmd.CreateParameter();
             param.ParameterName = paramName;
-            param.Value = paramValue;
+            param.Value = (paramValue != null ? paramValue : DBNull.Value);
             configureParam?.Invoke(param);
             cmd.Parameters.Add(param);
             return cmd;
