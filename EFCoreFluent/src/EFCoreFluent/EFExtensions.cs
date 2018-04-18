@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data.Common;
+using System.Data.SqlClient;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
@@ -10,14 +11,13 @@ using System.Threading.Tasks;
 namespace Snickler.EFCore
 {
     public static class EFExtensions
-    {
-        /// <summary>
-        /// Creates an initial DbCommand object based on a stored procedure name
-        /// </summary>
-        /// <param name="context">target database context</param>
-        /// <param name="storedProcName">target procedure name</param>
-        /// <param name="prependDefaultSchema">Prepend the default schema name to <paramref name="storedProcName"/> if explicitly defined in <paramref name="context"/></param>
-        /// <returns></returns>
+    {/// <summary>
+     /// Creates an initial DbCommand object based on a stored procedure name
+     /// </summary>
+     /// <param name="context">target database context</param>
+     /// <param name="storedProcName">target procedure name</param>
+     /// <param name="prependDefaultSchema">Prepend the default schema name to <paramref name="storedProcName"/> if explicitly defined in <paramref name="context"/></param>
+     /// <returns></returns>
         public static DbCommand LoadStoredProc(this DbContext context, string storedProcName, bool prependDefaultSchema = true)
         {
             var cmd = context.Database.GetDbConnection().CreateCommand();
@@ -55,6 +55,13 @@ namespace Snickler.EFCore
             return cmd;
         }
 
+        /// <summary>
+        /// Creates a DbParameter object and adds it to a DbCommand
+        /// </summary>
+        /// <param name="cmd"></param>
+        /// <param name="paramName"></param>
+        /// <param name="paramValue"></param>
+        /// <returns></returns>
         public static DbCommand WithSqlParam(this DbCommand cmd, string paramName, Action<DbParameter> configureParam = null)
         {
             if (string.IsNullOrEmpty(cmd.CommandText) && cmd.CommandType != System.Data.CommandType.StoredProcedure)
@@ -64,6 +71,27 @@ namespace Snickler.EFCore
             param.ParameterName = paramName;
             configureParam?.Invoke(param);
             cmd.Parameters.Add(param);
+            return cmd;
+        }
+
+        /// <summary>
+        /// Creates a DbParameter object based on the SqlParameter and adds it to a DbCommand.
+        /// This enabled the ability to provide custom types for SQL-parameters.
+        /// </summary>
+        /// <param name="cmd"></param>
+        /// <param name="paramName"></param>
+        /// <param name="paramValue"></param>
+        /// <returns></returns>
+        public static DbCommand WithSqlParam(this DbCommand cmd, string paramName, SqlParameter parameter)
+        {
+            if (string.IsNullOrEmpty(cmd.CommandText) && cmd.CommandType != System.Data.CommandType.StoredProcedure)
+                throw new InvalidOperationException("Call LoadStoredProc before using this method");
+
+            //var param = cmd.CreateParameter();
+            //param.ParameterName = paramName;
+            //configureParam?.Invoke(param);
+            cmd.Parameters.Add(parameter);
+
             return cmd;
         }
 
@@ -113,7 +141,7 @@ namespace Snickler.EFCore
             private IList<T> MapToList<T>(DbDataReader dr)
             {
                 var objList = new List<T>();
-                var props = typeof(T).GetRuntimeProperties();
+                var props = typeof(T).GetRuntimeProperties().ToList();
 
                 var colMapping = dr.GetColumnSchema()
                     .Where(x => props.Any(y => y.Name.ToLower() == x.ColumnName.ToLower()))
@@ -126,8 +154,17 @@ namespace Snickler.EFCore
                         T obj = Activator.CreateInstance<T>();
                         foreach (var prop in props)
                         {
-                            var val = dr.GetValue(colMapping[prop.Name.ToLower()].ColumnOrdinal.Value);
-                            prop.SetValue(obj, val == DBNull.Value ? null : val);
+                            if (colMapping.ContainsKey(prop.Name.ToLower()))
+                            {
+                                var column = colMapping[prop.Name.ToLower()];
+
+                                if (column?.ColumnOrdinal != null)
+                                {
+                                    var val = dr.GetValue(column.ColumnOrdinal.Value);
+                                    prop.SetValue(obj, val == DBNull.Value ? null : val);
+                                }
+
+                            }
                         }
                         objList.Add(obj);
                     }
