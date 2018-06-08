@@ -3,14 +3,14 @@
   <PropertyGroup>
     <TargetFrameworks>netstandard1.4;netstandard2.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <AssemblyVersion>1.0.0.1</AssemblyVersion>
-    <FileVersion>1.0.0.1</FileVersion>
+    <AssemblyVersion>1.0.2</AssemblyVersion>
+    <FileVersion>1.0.2</FileVersion>
     <PackageTags>snickler.efcore,entityframeworkcore,fluent,storedprocedure</PackageTags>
     <PackageProjectUrl>https://github.com/snickler/EFCore-FluentStoredProcedure</PackageProjectUrl>
     <Copyright></Copyright>
     <PackageLicenseUrl>https://github.com/snickler/EFCore-FluentStoredProcedure/blob/master/LICENSE</PackageLicenseUrl>
     <Authors>Jeremy Sinclair, contributors</Authors>
-    <Version>1.0.1</Version>
+    <Version>1.0.2</Version>
     <Description>Fluent Stored Procedure Extensions for EntityFrameworkCore</Description>
     <PackageId>Snickler.EFCore</PackageId>
     <Product>Snickler.EFCore</Product>
@@ -21,7 +21,7 @@
   </ItemGroup>
 
   <ItemGroup Condition=" '$(TargetFramework)' == 'netstandard2.0' ">
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="2.0.2" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="2.*" />
   </ItemGroup>
 
 </Project>
