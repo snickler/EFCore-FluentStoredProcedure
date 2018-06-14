@@ -203,7 +203,7 @@ namespace Snickler.EFCore
 
             using (command)
             {
-                if (command.Connection.State == System.Data.ConnectionState.Closed && manageConnection)
+                if (manageConnection && command.Connection.State == System.Data.ConnectionState.Closed)
                     command.Connection.Open();
                 try
                 {
@@ -239,7 +239,7 @@ namespace Snickler.EFCore
 
             using (command)
             {
-                if (command.Connection.State == System.Data.ConnectionState.Closed && manageConnection)
+                if (manageConnection && command.Connection.State == System.Data.ConnectionState.Closed)
                     await command.Connection.OpenAsync(ct).ConfigureAwait(false);
                 try
                 {
