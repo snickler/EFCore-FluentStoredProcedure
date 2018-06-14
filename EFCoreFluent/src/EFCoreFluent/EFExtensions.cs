@@ -194,7 +194,7 @@ namespace Snickler.EFCore
         /// <typeparam name="T"></typeparam>
         /// <param name="command"></param>
         /// <returns></returns>
-        public static void ExecuteStoredProc(this DbCommand command, Action<SprocResults> handleResults, System.Data.CommandBehavior commandBehaviour = System.Data.CommandBehavior.Default)
+        public static void ExecuteStoredProc(this DbCommand command, Action<SprocResults> handleResults, System.Data.CommandBehavior commandBehaviour = System.Data.CommandBehavior.Default, bool manageConnection = true)
         {
             if (handleResults == null)
             {
@@ -203,7 +203,7 @@ namespace Snickler.EFCore
 
             using (command)
             {
-                if (command.Connection.State == System.Data.ConnectionState.Closed)
+                if (command.Connection.State == System.Data.ConnectionState.Closed && manageConnection)
                     command.Connection.Open();
                 try
                 {
@@ -216,7 +216,10 @@ namespace Snickler.EFCore
                 }
                 finally
                 {
-                    command.Connection.Close();
+                    if(manageConnection)
+                    {
+                        command.Connection.Close();
+                    }
                 }
             }
         }
@@ -227,7 +230,7 @@ namespace Snickler.EFCore
         /// <typeparam name="T"></typeparam>
         /// <param name="command"></param>
         /// <returns></returns>
-        public async static Task ExecuteStoredProcAsync(this DbCommand command, Action<SprocResults> handleResults, System.Data.CommandBehavior commandBehaviour = System.Data.CommandBehavior.Default, CancellationToken ct = default(CancellationToken))
+        public async static Task ExecuteStoredProcAsync(this DbCommand command, Action<SprocResults> handleResults, System.Data.CommandBehavior commandBehaviour = System.Data.CommandBehavior.Default, CancellationToken ct = default(CancellationToken), bool manageConnection = true)
         {
             if (handleResults == null)
             {
@@ -236,7 +239,7 @@ namespace Snickler.EFCore
 
             using (command)
             {
-                if (command.Connection.State == System.Data.ConnectionState.Closed)
+                if (command.Connection.State == System.Data.ConnectionState.Closed && manageConnection)
                     await command.Connection.OpenAsync(ct).ConfigureAwait(false);
                 try
                 {
@@ -248,7 +251,10 @@ namespace Snickler.EFCore
                 }
                 finally
                 {
-                    command.Connection.Close();
+                    if (manageConnection)
+                    {
+                        command.Connection.Close();
+                    }
                 }
             }
         }
