@@ -71,3 +71,79 @@ Add the `using` statement to pull in the extension method. E.g: `using Snickler.
 
 ```
 
+### Using output parameters without returning a result set
+
+```csharp
+
+      DbParameter outputParam = null;
+
+      var dbContext = GetDbContext();
+
+      await dbContext.LoadStoredProc("dbo.SomeSproc")
+            .WithSqlParam("InputParam1", 1)
+            .WithSqlParam("myOutputParam", (dbParam) =>
+            {
+                  dbParam.Direction = System.Data.ParameterDirection.Output;
+                  dbParam.DbType = System.Data.DbType.Int16;
+                  outputParam = dbParam;
+            })
+
+            .ExecuteStoredNonQueryAsync();
+
+      int outputParamValue = (short)outputParam.Value;
+
+```
+
+### Using output parameters without returning a result set but also getting the number of rows affected
+
+Make sure your stored procedure does not contain `SET NOCOUNT ON`.
+
+```csharp
+      int numberOfRowsAffected = -1;
+
+      DbParameter outputParam = null;
+
+      var dbContext = GetDbContext();
+
+      numberOfRowsAffected = await dbContext.LoadStoredProc("dbo.SomeSproc")
+            .WithSqlParam("InputParam1", 1)
+            .WithSqlParam("myOutputParam", (dbParam) =>
+            {
+                  dbParam.Direction = System.Data.ParameterDirection.Output;
+                  dbParam.DbType = System.Data.DbType.Int16;
+                  outputParam = dbParam;
+            })
+
+            .ExecuteStoredNonQueryAsync();
+
+      int outputParamValue = (short)outputParam.Value;
+
+```
+
+### Changing the execution timeout when waiting for a stored procedure to return
+
+```csharp
+
+      DbParameter outputParam = null;
+
+      var dbContext = GetDbContext();
+
+      // change timeout from 30 seconds to 300 seconds (5 minutes)
+      await dbContext.LoadStoredProc("dbo.SomeSproc", commandTimeout:300)
+            .WithSqlParam("InputParam1", 1)
+            .WithSqlParam("myOutputParam", (dbParam) =>
+            {
+                  dbParam.Direction = System.Data.ParameterDirection.Output;
+                  dbParam.DbType = System.Data.DbType.Int16;
+                  outputParam = dbParam;
+            })
+
+            .ExecuteStoredNonQueryAsync();
+
+      int outputParamValue = (short)outputParam.Value;
+
+```
+
+
+
+
