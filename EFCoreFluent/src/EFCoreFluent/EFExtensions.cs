@@ -11,29 +11,35 @@ using System.Threading.Tasks;
 namespace Snickler.EFCore
 {
     public static class EFExtensions
-    {/// <summary>
-     /// Creates an initial DbCommand object based on a stored procedure name
-     /// </summary>
-     /// <param name="context">target database context</param>
-     /// <param name="storedProcName">target procedure name</param>
-     /// <param name="prependDefaultSchema">Prepend the default schema name to <paramref name="storedProcName"/> if explicitly defined in <paramref name="context"/></param>
-     /// <returns></returns>
-        public static DbCommand LoadStoredProc(this DbContext context, string storedProcName, bool prependDefaultSchema = true)
-        {
-            var cmd = context.Database.GetDbConnection().CreateCommand();
-            if (prependDefaultSchema)
-            {
-                var schemaName = context.Model.Relational().DefaultSchema;
-                if (schemaName != null)
-                {
-                    storedProcName = $"{schemaName}.{storedProcName}";
-                }
+    {
+		/// <summary>
+		/// Creates an initial DbCommand object based on a stored procedure name
+		/// </summary>
+		/// <param name="context">target database context</param>
+		/// <param name="storedProcName">target procedure name</param>
+		/// <param name="prependDefaultSchema">Prepend the default schema name to <paramref name="storedProcName"/> if explicitly defined in <paramref name="context"/></param>
+		/// <param name="commandTimeout">Command timeout in seconds. Default is 30.</param>
+		/// <returns></returns>
+		public static DbCommand LoadStoredProc(this DbContext context, string storedProcName, bool prependDefaultSchema = true, short commandTimeout = 30)
+		{
+			var cmd = context.Database.GetDbConnection().CreateCommand();
 
-            }
-            cmd.CommandText = storedProcName;
-            cmd.CommandType = System.Data.CommandType.StoredProcedure;
-            return cmd;
-        }
+			cmd.CommandTimeout = commandTimeout;
+
+			if (prependDefaultSchema)
+			{
+				var schemaName = context.Model.Relational().DefaultSchema;
+				if (schemaName != null)
+				{
+					storedProcName = $"{schemaName}.{storedProcName}";
+				}
+			}
+
+			cmd.CommandText = storedProcName;
+			cmd.CommandType = System.Data.CommandType.StoredProcedure;
+
+			return cmd;
+		}
 
         /// <summary>
         /// Creates a DbParameter object and adds it to a DbCommand
@@ -258,5 +264,75 @@ namespace Snickler.EFCore
                 }
             }
         }
+        
+        		/// <summary>
+		/// Executes a non-query.
+		/// </summary>
+		/// <param name="command"></param>
+		/// <param name="commandBehaviour"></param>
+		/// <param name="manageConnection"></param>
+		/// <returns></returns>
+		public static int ExecuteStoredNonQuery(this DbCommand command, System.Data.CommandBehavior commandBehaviour = System.Data.CommandBehavior.Default, bool manageConnection = true)
+		{
+			int numberOfRecordsAffected = -1;
+
+			using (command)
+			{
+				if (command.Connection.State == System.Data.ConnectionState.Closed)
+				{
+					command.Connection.Open();
+				}
+
+				try
+				{
+					numberOfRecordsAffected = command.ExecuteNonQuery();
+				}
+				finally
+				{
+					if (manageConnection)
+					{
+						command.Connection.Close();
+					}
+				}
+			}
+
+			return numberOfRecordsAffected;
+		}
+
+		/// <summary>
+		/// Executes a non-query asynchronously.
+		/// </summary>
+		/// <param name="command"></param>
+		/// <param name="commandBehaviour"></param>
+		/// <param name="ct"></param>
+		/// <param name="manageConnection"></param>
+		/// <returns></returns>
+		public async static Task<int> ExecuteStoredNonQueryAsync(this DbCommand command, System.Data.CommandBehavior commandBehaviour = System.Data.CommandBehavior.Default, CancellationToken ct = default(CancellationToken), bool manageConnection = true)
+		{
+			int numberOfRecordsAffected = -1;
+
+			using (command)
+			{
+				if (command.Connection.State == System.Data.ConnectionState.Closed)
+				{
+					await command.Connection.OpenAsync(ct).ConfigureAwait(false);
+				}
+
+				try
+				{
+					numberOfRecordsAffected = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+				}
+				finally
+				{
+					if (manageConnection)
+					{
+						command.Connection.Close();
+					}
+				}
+			}
+
+			return numberOfRecordsAffected;
+		}
+        
     }
 }
