@@ -24,11 +24,10 @@ namespace Snickler.EFCore
         /// <param name="prependDefaultSchema">Prepend the default schema name to <paramref name="storedProcName"/> if explicitly defined in <paramref name="context"/></param>
         /// <param name="commandTimeout">Command timeout in seconds. Default is 30.</param>
         /// <returns></returns>
-        public static DbCommand LoadStoredProc(this DbContext context, string storedProcName, bool prependDefaultSchema = true, short commandTimeout = 30)
+        public static DbCommand LoadStoredProc(this DbContext context, string storedProcName,
+            bool prependDefaultSchema = true, short commandTimeout = 30)
         {
-
             var cmd = context.Database.GetDbConnection().CreateCommand();
-
             cmd.CommandTimeout = commandTimeout;
 
             if (prependDefaultSchema)
@@ -56,15 +55,17 @@ namespace Snickler.EFCore
         /// <param name="cmd"></param>
         /// <param name="paramName"></param>
         /// <param name="paramValue"></param>
+        /// <param name="configureParam"></param>
         /// <returns></returns>
-        public static DbCommand WithSqlParam(this DbCommand cmd, string paramName, object paramValue, Action<DbParameter> configureParam = null)
+        public static DbCommand WithSqlParam(this DbCommand cmd, string paramName, object paramValue,
+            Action<DbParameter> configureParam = null)
         {
             if (string.IsNullOrEmpty(cmd.CommandText) && cmd.CommandType != System.Data.CommandType.StoredProcedure)
                 throw new InvalidOperationException("Call LoadStoredProc before using this method");
 
             var param = cmd.CreateParameter();
             param.ParameterName = paramName;
-            param.Value = (paramValue != null ? paramValue : DBNull.Value);
+            param.Value = paramValue ?? DBNull.Value;
             configureParam?.Invoke(param);
             cmd.Parameters.Add(param);
             return cmd;
@@ -75,9 +76,10 @@ namespace Snickler.EFCore
         /// </summary>
         /// <param name="cmd"></param>
         /// <param name="paramName"></param>
-        /// <param name="paramValue"></param>
+        /// <param name="configureParam"></param>
         /// <returns></returns>
-        public static DbCommand WithSqlParam(this DbCommand cmd, string paramName, Action<DbParameter> configureParam = null)
+        public static DbCommand WithSqlParam(this DbCommand cmd, string paramName,
+            Action<DbParameter> configureParam = null)
         {
             if (string.IsNullOrEmpty(cmd.CommandText) && cmd.CommandType != System.Data.CommandType.StoredProcedure)
                 throw new InvalidOperationException("Call LoadStoredProc before using this method");
@@ -90,14 +92,13 @@ namespace Snickler.EFCore
         }
 
         /// <summary>
-        /// Creates a DbParameter object based on the SqlParameter and adds it to a DbCommand.
+        /// Adds a SqlParameter to a DbCommand.
         /// This enabled the ability to provide custom types for SQL-parameters.
         /// </summary>
         /// <param name="cmd"></param>
-        /// <param name="paramName"></param>
-        /// <param name="paramValue"></param>
+        /// <param name="parameter"></param>
         /// <returns></returns>
-        public static DbCommand WithSqlParam(this DbCommand cmd, string paramName, SqlParameter parameter)
+        public static DbCommand WithSqlParam(this DbCommand cmd, SqlParameter parameter)
         {
             if (string.IsNullOrEmpty(cmd.CommandText) && cmd.CommandType != System.Data.CommandType.StoredProcedure)
                 throw new InvalidOperationException("Call LoadStoredProc before using this method");
@@ -107,17 +108,33 @@ namespace Snickler.EFCore
             return cmd;
         }
 
+        /// <summary>
+        /// Adds an array of SqlParameters to a DbCommand
+        /// </summary>
+        /// <param name="cmd"></param>
+        /// <param name="parameters"></param>
+        /// <returns></returns>
+        /// <exception cref="InvalidOperationException"></exception>
+        public static DbCommand WithSqlParams(this DbCommand cmd, SqlParameter[] parameters)
+        {
+            if (string.IsNullOrEmpty(cmd.CommandText) && cmd.CommandType != System.Data.CommandType.StoredProcedure)
+                throw new InvalidOperationException("Call LoadStoredProc before using this method");
+
+            cmd.Parameters.AddRange(parameters);
+
+            return cmd;
+        }
+
         public class SprocResults
         {
-
-            private DbDataReader _reader;
+            private readonly DbDataReader _reader;
 
             public SprocResults(DbDataReader reader)
             {
                 _reader = reader;
             }
 
-            public IList<T> ReadToList<T>()
+            public IList<T> ReadToList<T>() where T : new()
             {
                 return MapToList<T>(_reader);
             }
@@ -147,64 +164,73 @@ namespace Snickler.EFCore
             /// </summary>
             /// <typeparam name="T"></typeparam>
             /// <param name="dr"></param>
-            /// <returns>IList<<typeparamref name="T"/>></returns>
-            private IList<T> MapToList<T>(DbDataReader dr)
+            /// <returns>IList&lt;<typeparam name="T">&gt;</typeparam></returns>
+            private static IList<T> MapToList<T>(DbDataReader dr) where T : new()
             {
                 var objList = new List<T>();
                 var props = typeof(T).GetRuntimeProperties().ToList();
 
                 var colMapping = dr.GetColumnSchema()
-                    .Where(x => props.Any(y => y.Name.ToLower() == x.ColumnName.ToLower()))
-                    .ToDictionary(key => key.ColumnName.ToLower());
+                    .Where(x => props.Any(y =>
+                        string.Equals(y.Name, x.ColumnName, StringComparison.CurrentCultureIgnoreCase)))
+                    .ToDictionary(key => key.ColumnName.ToUpper());
 
-                if (dr.HasRows)
+                if (!dr.HasRows)
+                    return objList;
+
+                while (dr.Read())
                 {
-                    while (dr.Read())
+                    var obj = new T();
+                    foreach (var prop in props)
                     {
-                        T obj = Activator.CreateInstance<T>();
-                        foreach (var prop in props)
-                        {
-                            if (colMapping.ContainsKey(prop.Name.ToLower()))
-                            {
-                                var column = colMapping[prop.Name.ToLower()];
+                        var upperName = prop.Name.ToUpper();
 
-                                if (column?.ColumnOrdinal != null)
-                                {
-                                    var val = dr.GetValue(column.ColumnOrdinal.Value);
-                                    prop.SetValue(obj, val == DBNull.Value ? null : val);
-                                }
+                        if (!colMapping.ContainsKey(upperName))
+                            continue;
 
-                            }
-                        }
-                        objList.Add(obj);
+                        var column = colMapping[upperName];
+
+                        if (column?.ColumnOrdinal == null)
+                            continue;
+
+                        var val = dr.GetValue(column.ColumnOrdinal.Value);
+                        prop.SetValue(obj, val == DBNull.Value ? null : val);
                     }
+
+                    objList.Add(obj);
                 }
+
                 return objList;
             }
 
             /// <summary>
-            ///Attempts to read the first value of the first row of the resultset.
+            /// Attempts to read the first value of the first row of the result set.
             /// </summary>
-            private T? MapToValue<T>(DbDataReader dr) where T : struct
+            private static T? MapToValue<T>(DbDataReader dr) where T : struct
             {
-                if (dr.HasRows)
+                if (!dr.HasRows)
+                    return new T?();
+
+                if (dr.Read())
                 {
-                    if (dr.Read())
-                    {
-                        return dr.IsDBNull(0) ? new T?() : new T?(dr.GetFieldValue<T>(0));
-                    }
+                    return dr.IsDBNull(0) ? new T?() : dr.GetFieldValue<T>(0);
                 }
+
                 return new T?();
             }
         }
 
         /// <summary>
-        /// Executes a DbDataReader and returns a list of mapped column values to the properties of <typeparamref name="T"/>
+        /// Executes a DbDataReader and passes the results to <paramref name="handleResults"/>
         /// </summary>
-        /// <typeparam name="T"></typeparam>
         /// <param name="command"></param>
+        /// <param name="handleResults"></param>
+        /// <param name="commandBehaviour"></param>
+        /// <param name="manageConnection"></param>
         /// <returns></returns>
-        public static void ExecuteStoredProc(this DbCommand command, Action<SprocResults> handleResults, System.Data.CommandBehavior commandBehaviour = System.Data.CommandBehavior.Default, bool manageConnection = true)
+        public static void ExecuteStoredProc(this DbCommand command, Action<SprocResults> handleResults,
+            System.Data.CommandBehavior commandBehaviour = System.Data.CommandBehavior.Default,
+            bool manageConnection = true)
         {
             if (handleResults == null)
             {
@@ -234,12 +260,17 @@ namespace Snickler.EFCore
         }
 
         /// <summary>
-        /// Executes a DbDataReader asynchronously and returns a list of mapped column values to the properties of <typeparamref name="T"/>.
+        /// Executes a DbDataReader asynchronously and passes the results to <paramref name="handleResults"/>
         /// </summary>
-        /// <typeparam name="T"></typeparam>
         /// <param name="command"></param>
+        /// <param name="handleResults"></param>
+        /// <param name="commandBehaviour"></param>
+        /// <param name="ct"></param>
+        /// <param name="manageConnection"></param>
         /// <returns></returns>
-        public async static Task ExecuteStoredProcAsync(this DbCommand command, Action<SprocResults> handleResults, System.Data.CommandBehavior commandBehaviour = System.Data.CommandBehavior.Default, CancellationToken ct = default(CancellationToken), bool manageConnection = true)
+        public static async Task ExecuteStoredProcAsync(this DbCommand command, Action<SprocResults> handleResults,
+            System.Data.CommandBehavior commandBehaviour = System.Data.CommandBehavior.Default,
+            CancellationToken ct = default, bool manageConnection = true)
         {
             if (handleResults == null)
             {
@@ -252,7 +283,8 @@ namespace Snickler.EFCore
                     await command.Connection.OpenAsync(ct).ConfigureAwait(false);
                 try
                 {
-                    using (var reader = await command.ExecuteReaderAsync(commandBehaviour, ct).ConfigureAwait(false))
+                    using (var reader = await command.ExecuteReaderAsync(commandBehaviour, ct)
+                        .ConfigureAwait(false))
                     {
                         var sprocResults = new SprocResults(reader);
                         handleResults(sprocResults);
@@ -269,15 +301,57 @@ namespace Snickler.EFCore
         }
 
         /// <summary>
-        /// Executes a non-query.
+        /// Executes a DbDataReader asynchronously and passes the results thru all <paramref name="resultActions"/>
         /// </summary>
         /// <param name="command"></param>
         /// <param name="commandBehaviour"></param>
+        /// <param name="ct"></param>
+        /// <param name="manageConnection"></param>
+        /// <param name="resultActions"></param>
+        /// <returns></returns>
+        public static async Task ExecuteStoredProcAsync(this DbCommand command,
+            System.Data.CommandBehavior commandBehaviour = System.Data.CommandBehavior.Default,
+            CancellationToken ct = default, bool manageConnection = true, params Action<SprocResults>[] resultActions)
+        {
+            if (resultActions == null)
+            {
+                throw new ArgumentNullException(nameof(resultActions));
+            }
+
+            using (command)
+            {
+                if (manageConnection && command.Connection.State == System.Data.ConnectionState.Closed)
+                    await command.Connection.OpenAsync(ct).ConfigureAwait(false);
+                try
+                {
+                    using (var reader = await command.ExecuteReaderAsync(commandBehaviour, ct)
+                        .ConfigureAwait(false))
+                    {
+                        var sprocResults = new SprocResults(reader);
+
+                        foreach (var t in resultActions)
+                            t(sprocResults);
+                    }
+                }
+                finally
+                {
+                    if (manageConnection)
+                    {
+                        command.Connection.Close();
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Executes a non-query.
+        /// </summary>
+        /// <param name="command"></param>
         /// <param name="manageConnection"></param>
         /// <returns></returns>
-        public static int ExecuteStoredNonQuery(this DbCommand command, System.Data.CommandBehavior commandBehaviour = System.Data.CommandBehavior.Default, bool manageConnection = true)
+        public static int ExecuteStoredNonQuery(this DbCommand command, bool manageConnection = true)
         {
-            int numberOfRecordsAffected = -1;
+            var numberOfRecordsAffected = -1;
 
             using (command)
             {
@@ -306,13 +380,13 @@ namespace Snickler.EFCore
         /// Executes a non-query asynchronously.
         /// </summary>
         /// <param name="command"></param>
-        /// <param name="commandBehaviour"></param>
         /// <param name="ct"></param>
         /// <param name="manageConnection"></param>
         /// <returns></returns>
-        public async static Task<int> ExecuteStoredNonQueryAsync(this DbCommand command, System.Data.CommandBehavior commandBehaviour = System.Data.CommandBehavior.Default, CancellationToken ct = default(CancellationToken), bool manageConnection = true)
+        public static async Task<int> ExecuteStoredNonQueryAsync(this DbCommand command, CancellationToken ct = default,
+            bool manageConnection = true)
         {
-            int numberOfRecordsAffected = -1;
+            var numberOfRecordsAffected = -1;
 
             using (command)
             {
@@ -323,7 +397,7 @@ namespace Snickler.EFCore
 
                 try
                 {
-                    numberOfRecordsAffected = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+                    numberOfRecordsAffected = await command.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
                 }
                 finally
                 {
@@ -336,6 +410,5 @@ namespace Snickler.EFCore
 
             return numberOfRecordsAffected;
         }
-
     }
 }
