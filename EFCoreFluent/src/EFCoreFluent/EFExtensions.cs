@@ -1,11 +1,7 @@
-﻿#if NETSTANDARD2_1
-using Microsoft.Data.SqlClient;
-#else
-using System.Data.SqlClient;
-#endif
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Data.Common;
 using System.Linq;
 using System.Reflection;
@@ -32,11 +28,7 @@ namespace Snickler.EFCore
 
             if (prependDefaultSchema)
             {
-#if NETSTANDARD2_1
-                var schemaName = context.Model.GetDefaultSchema();
-#else
-                var schemaName = context.Model.Relational().DefaultSchema;
-#endif
+                var schemaName = context.Model["DefaultSchema"];
                 if (schemaName != null)
                 {
                     storedProcName = $"{schemaName}.{storedProcName}";
@@ -44,7 +36,7 @@ namespace Snickler.EFCore
             }
 
             cmd.CommandText = storedProcName;
-            cmd.CommandType = System.Data.CommandType.StoredProcedure;
+            cmd.CommandType = CommandType.StoredProcedure;
 
             return cmd;
         }
@@ -81,7 +73,7 @@ namespace Snickler.EFCore
         public static DbCommand WithSqlParam(this DbCommand cmd, string paramName,
             Action<DbParameter> configureParam = null)
         {
-            if (string.IsNullOrEmpty(cmd.CommandText) && cmd.CommandType != System.Data.CommandType.StoredProcedure)
+            if (string.IsNullOrEmpty(cmd.CommandText) && cmd.CommandType != CommandType.StoredProcedure)
                 throw new InvalidOperationException("Call LoadStoredProc before using this method");
 
             var param = cmd.CreateParameter();
@@ -98,7 +90,7 @@ namespace Snickler.EFCore
         /// <param name="cmd"></param>
         /// <param name="parameter"></param>
         /// <returns></returns>
-        public static DbCommand WithSqlParam(this DbCommand cmd, SqlParameter parameter)
+        public static DbCommand WithSqlParam(this DbCommand cmd, IDbDataParameter parameter)
         {
             if (string.IsNullOrEmpty(cmd.CommandText) && cmd.CommandType != System.Data.CommandType.StoredProcedure)
                 throw new InvalidOperationException("Call LoadStoredProc before using this method");
@@ -115,7 +107,7 @@ namespace Snickler.EFCore
         /// <param name="parameters"></param>
         /// <returns></returns>
         /// <exception cref="InvalidOperationException"></exception>
-        public static DbCommand WithSqlParams(this DbCommand cmd, SqlParameter[] parameters)
+        public static DbCommand WithSqlParams(this DbCommand cmd, IDbDataParameter[] parameters)
         {
             if (string.IsNullOrEmpty(cmd.CommandText) && cmd.CommandType != System.Data.CommandType.StoredProcedure)
                 throw new InvalidOperationException("Call LoadStoredProc before using this method");
@@ -229,7 +221,7 @@ namespace Snickler.EFCore
         /// <param name="manageConnection"></param>
         /// <returns></returns>
         public static void ExecuteStoredProc(this DbCommand command, Action<SprocResults> handleResults,
-            System.Data.CommandBehavior commandBehaviour = System.Data.CommandBehavior.Default,
+            CommandBehavior commandBehaviour = CommandBehavior.Default,
             bool manageConnection = true)
         {
             if (handleResults == null)
@@ -239,7 +231,7 @@ namespace Snickler.EFCore
 
             using (command)
             {
-                if (manageConnection && command.Connection.State == System.Data.ConnectionState.Closed)
+                if (manageConnection && command.Connection.State == ConnectionState.Closed)
                     command.Connection.Open();
                 try
                 {
@@ -310,7 +302,7 @@ namespace Snickler.EFCore
         /// <param name="resultActions"></param>
         /// <returns></returns>
         public static async Task ExecuteStoredProcAsync(this DbCommand command,
-            System.Data.CommandBehavior commandBehaviour = System.Data.CommandBehavior.Default,
+            CommandBehavior commandBehaviour = CommandBehavior.Default,
             CancellationToken ct = default, bool manageConnection = true, params Action<SprocResults>[] resultActions)
         {
             if (resultActions == null)
@@ -320,7 +312,7 @@ namespace Snickler.EFCore
 
             using (command)
             {
-                if (manageConnection && command.Connection.State == System.Data.ConnectionState.Closed)
+                if (manageConnection && command.Connection.State == ConnectionState.Closed)
                     await command.Connection.OpenAsync(ct).ConfigureAwait(false);
                 try
                 {
@@ -355,7 +347,7 @@ namespace Snickler.EFCore
 
             using (command)
             {
-                if (command.Connection.State == System.Data.ConnectionState.Closed)
+                if (command.Connection.State == ConnectionState.Closed)
                 {
                     command.Connection.Open();
                 }
@@ -390,7 +382,7 @@ namespace Snickler.EFCore
 
             using (command)
             {
-                if (command.Connection.State == System.Data.ConnectionState.Closed)
+                if (command.Connection.State == ConnectionState.Closed)
                 {
                     await command.Connection.OpenAsync(ct).ConfigureAwait(false);
                 }
