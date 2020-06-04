@@ -1,17 +1,17 @@
-﻿<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <TargetFrameworks>netstandard1.4;netstandard2.0;netstandard2.1</TargetFrameworks>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-        <AssemblyVersion>1.1</AssemblyVersion>
-        <FileVersion>1.1</FileVersion>
+        <AssemblyVersion>2.0.0.0</AssemblyVersion>
+        <FileVersion>2.0.0.0</FileVersion>
         <PackageTags>snickler.efcore,entityframeworkcore,fluent,storedprocedure</PackageTags>
         <PackageProjectUrl>https://github.com/snickler/EFCore-FluentStoredProcedure</PackageProjectUrl>
         <Copyright>
         </Copyright>
         <PackageLicenseUrl>https://github.com/snickler/EFCore-FluentStoredProcedure/blob/master/LICENSE</PackageLicenseUrl>
         <Authors>Jeremy Sinclair, contributors</Authors>
-        <Version>1.1</Version>
+        <Version>2.0</Version>
         <Description>Fluent Stored Procedure Extensions for EntityFrameworkCore</Description>
         <PackageId>Snickler.EFCore</PackageId>
         <Product>Snickler.EFCore</Product>
@@ -19,10 +19,7 @@
     <ItemGroup Condition=" '$(TargetFramework)' == 'netstandard1.4' ">
         <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="1.1.6" />
     </ItemGroup>
-    <ItemGroup Condition=" '$(TargetFramework)' == 'netstandard2.0' ">
+    <ItemGroup Condition=" '$(TargetFramework)' == 'netstandard2.0'">
         <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="2.*" />
-    </ItemGroup>
-    <ItemGroup Condition=" '$(TargetFramework)' == 'netstandard2.1' ">
-        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="3.*" />
     </ItemGroup>
 </Project>
