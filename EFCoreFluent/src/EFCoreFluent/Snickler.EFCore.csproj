@@ -1,25 +1,49 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
-    <PropertyGroup>
-        <TargetFrameworks>netstandard1.4;netstandard2.0</TargetFrameworks>
-        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-        <AssemblyVersion>2.0.0.0</AssemblyVersion>
-        <FileVersion>2.0.0.0</FileVersion>
-        <PackageTags>snickler.efcore,entityframeworkcore,fluent,storedprocedure</PackageTags>
-        <PackageProjectUrl>https://github.com/snickler/EFCore-FluentStoredProcedure</PackageProjectUrl>
-        <Copyright>
-        </Copyright>
-        <PackageLicenseUrl>https://github.com/snickler/EFCore-FluentStoredProcedure/blob/master/LICENSE</PackageLicenseUrl>
-        <Authors>Jeremy Sinclair, contributors</Authors>
-        <Version>2.0</Version>
-        <Description>Fluent Stored Procedure Extensions for EntityFrameworkCore</Description>
-        <PackageId>Snickler.EFCore</PackageId>
-        <Product>Snickler.EFCore</Product>
-    </PropertyGroup>
-    <ItemGroup Condition=" '$(TargetFramework)' == 'netstandard1.4' ">
-        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="1.1.6" />
-    </ItemGroup>
-    <ItemGroup Condition=" '$(TargetFramework)' == 'netstandard2.0'">
-        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="2.*" />
-    </ItemGroup>
+	<PropertyGroup>
+		<TargetFrameworks>netstandard2.0;net5.0;net6.0</TargetFrameworks>
+		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		<AssemblyVersion>3.0.0.0</AssemblyVersion>
+		<FileVersion>3.0.0.0</FileVersion>
+		<PackageTags>snickler.efcore,entityframeworkcore,fluent,storedprocedure</PackageTags>
+		<PackageProjectUrl>https://github.com/snickler/EFCore-FluentStoredProcedure</PackageProjectUrl>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<Copyright>
+		</Copyright>
+		<PackageLicenseUrl>https://github.com/snickler/EFCore-FluentStoredProcedure/blob/master/LICENSE</PackageLicenseUrl>
+		<Authors>Jeremy Sinclair, contributors</Authors>
+		<Version>3.0.0</Version>
+		<Description>Fluent Stored Procedure Extensions for EntityFrameworkCore</Description>
+		<PackageId>Snickler.EFCore</PackageId>
+		<Product>Snickler.EFCore</Product>
+	</PropertyGroup>
+
+	<PropertyGroup>
+		<!-- Publish the repository URL in the built .nupkg (in the NuSpec <Repository> element) -->
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+
+		<!-- Embed source files that are not tracked by the source control manager in the PDB -->
+		<EmbedUntrackedSources>true</EmbedUntrackedSources>
+
+		<!-- Recommended: Embed symbols containing Source Link in the main file (exe/dll) -->
+		<DebugType>embedded</DebugType>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
+		<ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.0" PrivateAssets="All"/>
+	</ItemGroup>
+
+	<ItemGroup Condition=" '$(TargetFramework)' == 'netstandard2.0'">
+		<PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="2.*" />
+	</ItemGroup>
+	<ItemGroup Condition=" '$(TargetFramework)' == 'net5.0'">
+		<PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="5.*" />
+	</ItemGroup>
+	<ItemGroup Condition=" '$(TargetFramework)' == 'net6.0'">
+		<PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="6.*" />
+	</ItemGroup>
 </Project>
