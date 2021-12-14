@@ -23,6 +23,6 @@ jobs:
       uses: actions/upload-artifact@v2.3.0
       with:
         name: Package
-        path: "**/.nupkg"
+        path: "EFCoreFluent/src/EFCoreFluent/bin/Release/**.nupkg"
     
     
