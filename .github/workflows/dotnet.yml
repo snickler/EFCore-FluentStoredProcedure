@@ -3,8 +3,6 @@ name: .NET
 on:
   push:
     branches: [ master ]
-  pull_request:
-    branches: [ master ]
 
 jobs:
   build:
@@ -18,9 +16,9 @@ jobs:
       with:
         dotnet-version: 6.0.x
     - name: Restore dependencies
-      run: dotnet restore
+      run: dotnet restore EFCoreFluent
     - name: Build
-      run: dotnet build --no-restore --c Release
+      run: dotnet build EFCoreFluent --no-restore --c Release **/.csproj
     - name: Publish Artifact
       uses: actions/upload-artifact@v2.3.0
       with:
