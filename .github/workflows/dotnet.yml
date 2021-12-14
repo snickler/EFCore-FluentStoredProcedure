@@ -18,7 +18,7 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore EFCoreFluent
     - name: Build
-      run: dotnet build EFCoreFluent --no-restore --c Release **/.csproj
+      run: dotnet build EFCoreFluent --no-restore -c Release **/.csproj
     - name: Publish Artifact
       uses: actions/upload-artifact@v2.3.0
       with:
