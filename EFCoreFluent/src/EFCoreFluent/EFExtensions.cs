@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Data;
 using System.Data.Common;
 using System.Linq;
@@ -175,7 +176,7 @@ namespace Snickler.EFCore
                     var obj = new T();
                     foreach (var prop in props)
                     {
-                        var upperName = prop.Name.ToUpper();
+                        var upperName = (prop.GetCustomAttribute<ColumnAttribute>(true)?.Name ?? prop.Name).ToUpper();
 
                         if (!colMapping.ContainsKey(upperName))
                             continue;
