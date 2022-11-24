@@ -165,7 +165,7 @@ namespace Snickler.EFCore
 
                 var colMapping = dr.GetColumnSchema()
                     .Where(x => props.Any(y =>
-                        string.Equals(y.Name, x.ColumnName, StringComparison.CurrentCultureIgnoreCase)))
+                        string.Equals((y.GetCustomAttribute<ColumnAttribute>(true)?.Name ?? y.Name), x.ColumnName, StringComparison.CurrentCultureIgnoreCase)))
                     .ToDictionary(key => key.ColumnName.ToUpper());
 
                 if (!dr.HasRows)
