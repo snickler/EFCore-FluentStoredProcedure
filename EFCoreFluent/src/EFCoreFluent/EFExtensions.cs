@@ -187,6 +187,22 @@ namespace Snickler.EFCore
                             continue;
 
                         var val = dr.GetValue(column.ColumnOrdinal.Value);
+
+                        // Handle DateOnly and TimeOnly conversions, not supported by DBDataReader
+                        if (columnValue is DateTime dateTime)
+                        {
+                            Type propertyType = Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType;
+    
+                            if (propertyType == typeof(DateOnly))
+                            {
+                                columnValue = DateOnly.FromDateTime(dateTime);
+                            }
+                            else if (propertyType == typeof(TimeOnly))
+                            {
+                                columnValue = TimeOnly.FromDateTime(dateTime);
+                            }
+                        }
+                        
                         prop.SetValue(obj, val == DBNull.Value ? null : val);
                     }
 
