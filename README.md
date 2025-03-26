@@ -1,7 +1,7 @@
 # Snickler.EFCore
 Fluent Methods for mapping Stored Procedure results to objects in EntityFrameworkCore
 
-
+ 
 
 [![NuGet](https://img.shields.io/nuget/v/Snickler.EFCore.svg)](https://www.nuget.org/packages/Snickler.EFCore)
 
