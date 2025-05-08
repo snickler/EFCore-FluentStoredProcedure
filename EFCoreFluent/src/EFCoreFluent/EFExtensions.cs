@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Data;
 using System.Data.Common;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
@@ -134,7 +135,7 @@ namespace Snickler.EFCore
                 _reader = reader;
             }
 
-            public IList<T> ReadToList<T>() where T : new()
+            public IList<T> ReadToList<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] T>() where T : new()
             {
                 return MapToList<T>(_reader);
             }
@@ -164,11 +165,11 @@ namespace Snickler.EFCore
             /// </summary>
             /// <typeparam name="T"></typeparam>
             /// <param name="dr"></param>
-            /// <returns>IList&lt;<typeparam name="T">&gt;</typeparam></returns>
-            private static IList<T> MapToList<T>(DbDataReader dr) where T : new()
+            /// <returns>IList&lt;<typeparam name="T"/>&gt;</typeparam></returns>
+            private static IList<T> MapToList<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] T>(DbDataReader dr) where T : new()
             {
                 var objList = new List<T>();
-                var props = typeof(T).GetRuntimeProperties().ToList();
+                var props = typeof(T).GetProperties(BindingFlags.Instance | BindingFlags.Public).ToList();
 
                 var colMapping = dr.GetColumnSchema()
                     .Where(x => props.Any(y =>
