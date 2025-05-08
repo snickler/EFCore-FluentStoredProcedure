@@ -717,5 +717,145 @@ namespace Snickler.EFCore.Tests
             Assert.True(_fakeConnection.CloseCalled);
             Assert.True(fakeCommand.DisposedCalled);
         }
+
+        [Fact]
+        public void ReadToDataTable_ShouldPopulateDataTable()
+        {
+            // Arrange
+            var schemaTable = CreateSchemaTable(
+                ("Col1", typeof(int), 0, false, false, -1),
+                ("Col2", typeof(string), 1, true, false, 100)
+            );
+            var data = new List<object[]>
+            {
+                new object[] { 1, "Row1" },
+                new object[] { 2, DBNull.Value },
+                new object[] { 3, "Row3" }
+            };
+            var fakeDataReader = new FakeDbDataReader(data, schemaTable);
+            var sprocResults = new EFExtensions.SprocResults(fakeDataReader);
+
+            // Act
+            var resultTable = sprocResults.ReadToDataTable();
+
+            // Assert
+            Assert.NotNull(resultTable);
+            Assert.Equal(2, resultTable.Columns.Count);
+            Assert.Equal("Col1", resultTable.Columns[0].ColumnName);
+            Assert.Equal(typeof(int), resultTable.Columns[0].DataType);
+            Assert.Equal("Col2", resultTable.Columns[1].ColumnName);
+            Assert.Equal(typeof(string), resultTable.Columns[1].DataType);
+
+            Assert.Equal(3, resultTable.Rows.Count);
+            Assert.Equal(1, resultTable.Rows[0]["Col1"]);
+            Assert.Equal("Row1", resultTable.Rows[0]["Col2"]);
+            Assert.Equal(2, resultTable.Rows[1]["Col1"]);
+            Assert.Equal(DBNull.Value, resultTable.Rows[1]["Col2"]);
+            Assert.Equal(3, resultTable.Rows[2]["Col1"]);
+            Assert.Equal("Row3", resultTable.Rows[2]["Col2"]);
+        }
+
+        [Fact]
+        public void ReadToValueTupleList_ShouldMapToValueTuple_Arity1()
+        {
+            // Arrange
+            var schemaTable = CreateSchemaTable(("Id", typeof(int), 0, false, false, -1));
+            var data = new List<object[]> { new object[] { 123 }, new object[] { 456 } };
+            var fakeDataReader = new FakeDbDataReader(data, schemaTable);
+            var sprocResults = new EFExtensions.SprocResults(fakeDataReader);
+
+            // Act
+            var result = sprocResults.ReadToValueTupleList<ValueTuple<int>>();
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal(2, result.Count);
+            Assert.Equal(123, result[0].Item1);
+            Assert.Equal(456, result[1].Item1);
+        }
+
+        [Fact]
+        public void ReadToValueTupleList_ShouldMapToValueTuple_Arity2_WithNullsAndConversions()
+        {
+            // Arrange
+            var schemaTable = CreateSchemaTable(
+                ("Name", typeof(string), 0, true, false, 100),
+                ("Amount", typeof(decimal), 1, false, false, -1)
+            );
+            var data = new List<object[]>
+            {
+                new object[] { "Apple", 1.23m },
+                new object[] { DBNull.Value, 4.56m }
+            };
+            var fakeDataReader = new FakeDbDataReader(data, schemaTable);
+            var sprocResults = new EFExtensions.SprocResults(fakeDataReader);
+
+            // Act
+            var result = sprocResults.ReadToValueTupleList<(string?, decimal)>(); // Using tuple syntax sugar
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal(2, result.Count);
+            Assert.Equal("Apple", result[0].Item1);
+            Assert.Equal(1.23m, result[0].Item2);
+            Assert.Null(result[1].Item1);
+            Assert.Equal(4.56m, result[1].Item2);
+        }
+
+        [Fact]
+        public void ReadToValueTupleList_ShouldMapToValueTuple_Arity3_WithDateOnlyAndTimeOnly()
+        {
+            // Arrange
+            var testDateTime = new DateTime(2024, 3, 10, 10, 30, 0);
+            var schemaTable = CreateSchemaTable(
+                ("Id", typeof(int), 0, false, false, -1),
+                ("EventDate", typeof(DateTime), 1, false, false, -1),
+                ("EventTime", typeof(DateTime), 2, false, false, -1)
+            );
+            var data = new List<object[]> { new object[] { 1, testDateTime, testDateTime } };
+            var fakeDataReader = new FakeDbDataReader(data, schemaTable);
+            var sprocResults = new EFExtensions.SprocResults(fakeDataReader);
+
+            // Act
+            var result = sprocResults.ReadToValueTupleList<(int, DateOnly, TimeOnly)>();
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Single(result);
+            Assert.Equal(1, result[0].Item1);
+            Assert.Equal(DateOnly.FromDateTime(testDateTime), result[0].Item2);
+            Assert.Equal(TimeOnly.FromDateTime(testDateTime), result[0].Item3);
+        }
+
+        [Fact]
+        public void ReadToValueTupleList_ArityMismatch_ShouldReturnEmptyList()
+        {
+            // Arrange: Reader has 1 column, tuple expects 2
+            var schemaTable = CreateSchemaTable(("Id", typeof(int), 0, false, false, -1));
+            var data = new List<object[]> { new object[] { 123 } };
+            var fakeDataReader = new FakeDbDataReader(data, schemaTable);
+            var sprocResults = new EFExtensions.SprocResults(fakeDataReader);
+
+            // Act
+            var result = sprocResults.ReadToValueTupleList<(int, string)>();
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Empty(result); // Current implementation returns empty on arity mismatch
+        }
+
+        [Fact]
+        public void ReadToValueTupleList_NotAValueTuple_ShouldThrowArgumentException()
+        {
+            // Arrange
+            var schemaTable = CreateSchemaTable(("Id", typeof(int), 0, false, false, -1));
+            var data = new List<object[]> { new object[] { 123 } };
+            var fakeDataReader = new FakeDbDataReader(data, schemaTable);
+            var sprocResults = new EFExtensions.SprocResults(fakeDataReader);
+
+            // Act & Assert
+            // Use a non-ValueTuple struct to test the ArgumentException path correctly.
+            Assert.Throws<ArgumentException>("TValueTuple", () => sprocResults.ReadToValueTupleList<int>());
+        }
     }
 } 

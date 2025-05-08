@@ -144,6 +144,31 @@ Make sure your stored procedure does not contain `SET NOCOUNT ON`.
 
 ```
 
+### Features
+
+*   Fluent API for stored procedure parameters.
+*   Map results to `List<T>`.
+*   Map results to `ValueTuple` (e.g., `(int, string)`, `ValueTuple<T1, T2, ...>`).
+*   Map results to `DataTable`.
+*   Async support.
+*   Supports Input and Output parameters.
+*   Compatible with Entity Framework Core 8.0 and 9.0.
+*   AOT (Ahead-of-Time) compatible.
+
+## Installation
+
+## AOT Compatibility
+
+This library is designed to be compatible with .NET NativeAOT compilation.
+
+The `ReadToList<T>` method uses reflection to map database results to the properties of your POCO type `T`. To ensure this works correctly with AOT trimming, the method is annotated with `[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]`. This tells the AOT compiler to preserve the public properties of any type `T` used with `ReadToList`.
+
+When using this library in an AOT-published application, ensure that the POCO types you use with `ReadToList<T>` are themselves AOT-compatible (e.g., constructors and properties accessed are suitable for AOT). Standard POCOs with public properties and parameterless constructors are generally fine.
+
+Similarly, `ReadToValueTupleList<TValueTuple>` is designed with AOT in mind for common `ValueTuple` arities (currently 1 through 3). The public fields (`Item1`, `Item2`, etc.) and constructors of these `ValueTuple` types are preserved via `[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicFields)]`.
+
+## Contributing
+
 
 
 

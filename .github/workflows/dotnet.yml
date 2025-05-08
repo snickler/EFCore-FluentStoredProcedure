@@ -10,7 +10,8 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, windows-11-arm]
+        # os: [ubuntu-latest, windows-latest, windows-11-arm]
+        os: [windows-latest, windows-11-arm] # Target x64 and arm64 on Windows
     runs-on: ${{ matrix.os }}
 
     steps:

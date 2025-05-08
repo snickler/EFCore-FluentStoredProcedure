@@ -18,6 +18,7 @@
 		<Product>Snickler.EFCore</Product>
 		<IsAotCompatible>true</IsAotCompatible>
 		<PublishAot>true</PublishAot>
+		<Platforms>AnyCPU;ARM64</Platforms>
 	</PropertyGroup>
 
 	<PropertyGroup>

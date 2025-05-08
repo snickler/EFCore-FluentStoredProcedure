@@ -9,6 +9,7 @@ using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Runtime.CompilerServices;
 
 namespace Snickler.EFCore
 {
@@ -140,9 +141,88 @@ namespace Snickler.EFCore
                 return MapToList<T>(_reader);
             }
 
+            public DataTable ReadToDataTable()
+            {
+                var dataTable = new DataTable();
+                dataTable.Load(_reader);
+                return dataTable;
+            }
+
             public T? ReadToValue<T>() where T : struct
             {
                 return MapToValue<T>(_reader);
+            }
+
+            public IList<TValueTuple> ReadToValueTupleList<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicFields)] TValueTuple>() where TValueTuple : struct
+            {
+                var resultList = new List<TValueTuple>();
+                var tupleType = typeof(TValueTuple);
+
+                if (!tupleType.IsGenericType || !tupleType.FullName.StartsWith("System.ValueTuple`"))
+                {
+                    throw new ArgumentException("TValueTuple must be a System.ValueTuple.", nameof(TValueTuple));
+                }
+
+                var itemTypes = tupleType.GetGenericArguments();
+                var fieldCount = _reader.FieldCount;
+
+                if (itemTypes.Length == 0 || itemTypes.Length > fieldCount)
+                {
+                    return resultList; 
+                }
+
+                while (_reader.Read())
+                {
+                    var values = new object[itemTypes.Length];
+                    for (int i = 0; i < itemTypes.Length; i++)
+                    {
+                        if (_reader.IsDBNull(i))
+                        {
+                            values[i] = default; 
+                        }
+                        else
+                        {
+                            var dbValue = _reader.GetValue(i);
+                            if (dbValue is DateTime dtValue)
+                            {
+                                if (itemTypes[i] == typeof(DateOnly))
+                                {
+                                    values[i] = DateOnly.FromDateTime(dtValue);
+                                    continue;
+                                }
+                                if (itemTypes[i] == typeof(TimeOnly))
+                                {
+                                    values[i] = TimeOnly.FromDateTime(dtValue);
+                                    continue;
+                                }
+                            }
+                            values[i] = Convert.ChangeType(dbValue, itemTypes[i]);
+                        }
+                    }
+                    
+                    object createdTuple;
+                    switch (itemTypes.Length)
+                    {
+                        case 1:
+                            createdTuple = Activator.CreateInstance(tupleType, values[0]);
+                            break;
+                        case 2:
+                            createdTuple = Activator.CreateInstance(tupleType, values[0], values[1]);
+                            break;
+                        case 3:
+                            createdTuple = Activator.CreateInstance(tupleType, values[0], values[1], values[2]);
+                            break;
+                        default:
+                            System.Diagnostics.Debug.WriteLine($"ValueTuple with {itemTypes.Length} items not directly supported by this Activator path.");
+                            continue;
+                    }
+
+                    if (createdTuple != null)
+                    {
+                        resultList.Add((TValueTuple)createdTuple);
+                    }
+                }
+                return resultList;
             }
 
             public Task<bool> NextResultAsync()
