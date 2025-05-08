@@ -29,8 +29,8 @@ namespace Snickler.EFCore
 
             if (prependDefaultSchema)
             {
-                var schemaName = context.Model["DefaultSchema"];
-                if (schemaName != null)
+                var schemaName = context.Model.GetDefaultSchema();
+                if (!string.IsNullOrEmpty(schemaName))
                 {
                     storedProcName = $"{schemaName}.{storedProcName}";
                 }
@@ -187,23 +187,24 @@ namespace Snickler.EFCore
                             continue;
 
                         var val = dr.GetValue(column.ColumnOrdinal.Value);
+                        object mappedValue = val;
 
-                        // Handle DateOnly and TimeOnly conversions, not supported by DBDataReader
-                        if (columnValue is DateTime dateTime)
+                        // Handle DateOnly and TimeOnly conversions, not supported by DBDataReader directly
+                        if (val is DateTime dateTimeValue)
                         {
-                            Type propertyType = Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType;
+                            Type propertyType = Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType;
     
                             if (propertyType == typeof(DateOnly))
                             {
-                                columnValue = DateOnly.FromDateTime(dateTime);
+                                mappedValue = DateOnly.FromDateTime(dateTimeValue);
                             }
                             else if (propertyType == typeof(TimeOnly))
                             {
-                                columnValue = TimeOnly.FromDateTime(dateTime);
+                                mappedValue = TimeOnly.FromDateTime(dateTimeValue);
                             }
                         }
                         
-                        prop.SetValue(obj, val == DBNull.Value ? null : val);
+                        prop.SetValue(obj, mappedValue == DBNull.Value ? null : mappedValue);
                     }
 
                     objList.Add(obj);
