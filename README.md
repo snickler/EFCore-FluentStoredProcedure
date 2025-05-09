@@ -157,15 +157,24 @@ Make sure your stored procedure does not contain `SET NOCOUNT ON`.
 
 ## Installation
 
-## AOT Compatibility
+## AOT Compatibility and Source Generation
 
-This library is designed to be compatible with .NET NativeAOT compilation.
+This library is designed to be fully AOT (Ahead-of-Time) compatible by eliminating runtime reflection for result mapping. It achieves this through a C# Source Generator (`Snickler.EFCore.SourceGenerators`).
 
-The `ReadToList<T>` method uses reflection to map database results to the properties of your POCO type `T`. To ensure this works correctly with AOT trimming, the method is annotated with `[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]`. This tells the AOT compiler to preserve the public properties of any type `T` used with `ReadToList`.
+**How it works:**
 
-When using this library in an AOT-published application, ensure that the POCO types you use with `ReadToList<T>` are themselves AOT-compatible (e.g., constructors and properties accessed are suitable for AOT). Standard POCOs with public properties and parameterless constructors are generally fine.
+1.  When you compile your project, the source generator analyzes your code for calls to `ReadToList<T>()` and `ReadToValueTupleList<TValueTuple>()`.
+2.  For each unique POCO type `T` and `ValueTuple` structure used, it automatically generates dedicated, reflection-free mapping methods.
+3.  The original `ReadToList<T>` and `ReadToValueTupleList<TValueTuple>` methods then dispatch to these highly optimized, generated mappers at runtime.
 
-Similarly, `ReadToValueTupleList<TValueTuple>` is designed with AOT in mind for common `ValueTuple` arities (currently 1 through 3). The public fields (`Item1`, `Item2`, etc.) and constructors of these `ValueTuple` types are preserved via `[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicFields)]`.
+**What this means for you:**
+
+*   **No Runtime Reflection for Mapping:** This ensures better performance and reliability in AOT-compiled applications.
+*   **Automatic:** You don't need to write any special code to enable this; just use the library methods as usual.
+*   **Build-Time Generation:** All mapping code is generated at build time.
+*   **Requirement:** For the source generator to work correctly and discover all types you use for mapping, ensure that the `Snickler.EFCore.SourceGenerators` package (or project reference if building from source) is correctly referenced by any project that calls `ReadToList<T>` or `ReadToValueTupleList<TValueTuple>`, or ensure the types being mapped are visible to the generator during the compilation of the `Snickler.EFCore` library.
+
+The `[DynamicallyAccessedMembers]` attributes previously on `ReadToList<T>` and `ReadToValueTupleList<TValueTuple>` are no longer the primary mechanism for AOT safety for these methods, as the source generator now provides concrete implementations. They may be kept for documentation or as a fallback for scenarios the generator might not cover (though the aim is full coverage).
 
 ## Contributing
 

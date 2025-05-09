@@ -19,6 +19,7 @@
 		<IsAotCompatible>true</IsAotCompatible>
 		<PublishAot>true</PublishAot>
 		<Platforms>AnyCPU;ARM64</Platforms>
+		<EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
 	</PropertyGroup>
 
 	<PropertyGroup>
@@ -41,7 +42,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.0" PrivateAssets="All" />
+		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
 	</ItemGroup>
 
 	<ItemGroup Condition=" '$(TargetFramework)' == 'net8.0'">
@@ -49,5 +50,16 @@
 	</ItemGroup>
 	<ItemGroup Condition=" '$(TargetFramework)' == 'net9.0'">
 		<PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.*" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Snickler.EFCore.SourceGenerators\Snickler.EFCore.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+	</ItemGroup>
+
+	<!-- Allow the test project to access internal types -->
+	<ItemGroup>
+		<AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+			<_Parameter1>Snickler.EFCore.Tests</_Parameter1>
+		</AssemblyAttribute>
 	</ItemGroup>
 </Project>

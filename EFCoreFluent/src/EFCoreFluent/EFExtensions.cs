@@ -1,4 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿#nullable enable
+
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations.Schema;
@@ -13,7 +15,7 @@ using System.Runtime.CompilerServices;
 
 namespace Snickler.EFCore
 {
-    public static class EFExtensions
+    public static partial class EFExtensions
     {
         /// <summary>
         /// Creates an initial DbCommand object based on a stored procedure name
@@ -53,7 +55,7 @@ namespace Snickler.EFCore
         /// <param name="configureParam"></param>
         /// <returns></returns>
         public static DbCommand WithSqlParam(this DbCommand cmd, string paramName, object paramValue,
-            Action<DbParameter> configureParam = null)
+            Action<DbParameter>? configureParam = null)
         {
             if (string.IsNullOrEmpty(cmd.CommandText) && cmd.CommandType != System.Data.CommandType.StoredProcedure)
                 throw new InvalidOperationException("Call LoadStoredProc before using this method");
@@ -81,7 +83,7 @@ namespace Snickler.EFCore
         /// <param name="configureParam"></param>
         /// <returns></returns>
         public static DbCommand WithSqlParam(this DbCommand cmd, string paramName,
-            Action<DbParameter> configureParam = null)
+            Action<DbParameter>? configureParam = null)
         {
             if (string.IsNullOrEmpty(cmd.CommandText) && cmd.CommandType != CommandType.StoredProcedure)
                 throw new InvalidOperationException("Call LoadStoredProc before using this method");
@@ -127,20 +129,39 @@ namespace Snickler.EFCore
             return cmd;
         }
 
-        public class SprocResults
+        public partial class SprocResults : IDisposable
         {
             private readonly DbDataReader _reader;
+            private readonly bool _closeReaderOnDispose;
+            private bool _disposed = false;
 
-            public SprocResults(DbDataReader reader)
+            // Static dummy methods for generator triggering
+            public static void ReadToList_Dummy<T>() where T : new() { }
+            public static void ReadToValueTupleList_Dummy<TValueTuple>() where TValueTuple : struct { }
+
+            public SprocResults(DbDataReader reader, bool closeReaderOnDispose = true)
             {
-                _reader = reader;
+                _reader = reader ?? throw new ArgumentNullException(nameof(reader));
+                _closeReaderOnDispose = closeReaderOnDispose;
             }
 
-            public IList<T> ReadToList<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] T>() where T : new()
+            [RequiresUnreferencedCode("SprocResults.ReadToList<T> uses reflection. For AOT compatibility, ensure the source generator is active for type T, or use a T that is appropriately annotated.")]
+            public IList<T> ReadToList<T>() where T : new()
             {
-                return MapToList<T>(_reader);
+                // This method will be implemented by the source generator in a partial class.
+                // If the generator doesn't run or doesn't find an invocation for T, this will lead to a compile error
+                // or a runtime error if this base method had a fallback (which it currently doesn't explicitly).
+                return GeneratedReadToListDispatch<T>();
             }
 
+            [RequiresUnreferencedCode("SprocResults.ReadToValueTupleList<TValueTuple> uses reflection. For AOT compatibility, ensure the source generator is active for type TValueTuple, or use a TValueTuple that is appropriately annotated.")]
+            public IList<TValueTuple> ReadToValueTupleList<TValueTuple>() where TValueTuple : struct
+            {
+                // This method will be implemented by the source generator in a partial class.
+                return GeneratedReadToValueTupleListDispatch<TValueTuple>();
+            }
+
+            [RequiresUnreferencedCode("DataTable.Load uses reflection and is not AOT compatible.")]
             public DataTable ReadToDataTable()
             {
                 var dataTable = new DataTable();
@@ -151,78 +172,6 @@ namespace Snickler.EFCore
             public T? ReadToValue<T>() where T : struct
             {
                 return MapToValue<T>(_reader);
-            }
-
-            public IList<TValueTuple> ReadToValueTupleList<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicFields)] TValueTuple>() where TValueTuple : struct
-            {
-                var resultList = new List<TValueTuple>();
-                var tupleType = typeof(TValueTuple);
-
-                if (!tupleType.IsGenericType || !tupleType.FullName.StartsWith("System.ValueTuple`"))
-                {
-                    throw new ArgumentException("TValueTuple must be a System.ValueTuple.", nameof(TValueTuple));
-                }
-
-                var itemTypes = tupleType.GetGenericArguments();
-                var fieldCount = _reader.FieldCount;
-
-                if (itemTypes.Length == 0 || itemTypes.Length > fieldCount)
-                {
-                    return resultList; 
-                }
-
-                while (_reader.Read())
-                {
-                    var values = new object[itemTypes.Length];
-                    for (int i = 0; i < itemTypes.Length; i++)
-                    {
-                        if (_reader.IsDBNull(i))
-                        {
-                            values[i] = default; 
-                        }
-                        else
-                        {
-                            var dbValue = _reader.GetValue(i);
-                            if (dbValue is DateTime dtValue)
-                            {
-                                if (itemTypes[i] == typeof(DateOnly))
-                                {
-                                    values[i] = DateOnly.FromDateTime(dtValue);
-                                    continue;
-                                }
-                                if (itemTypes[i] == typeof(TimeOnly))
-                                {
-                                    values[i] = TimeOnly.FromDateTime(dtValue);
-                                    continue;
-                                }
-                            }
-                            values[i] = Convert.ChangeType(dbValue, itemTypes[i]);
-                        }
-                    }
-                    
-                    object createdTuple;
-                    switch (itemTypes.Length)
-                    {
-                        case 1:
-                            createdTuple = Activator.CreateInstance(tupleType, values[0]);
-                            break;
-                        case 2:
-                            createdTuple = Activator.CreateInstance(tupleType, values[0], values[1]);
-                            break;
-                        case 3:
-                            createdTuple = Activator.CreateInstance(tupleType, values[0], values[1], values[2]);
-                            break;
-                        default:
-                            System.Diagnostics.Debug.WriteLine($"ValueTuple with {itemTypes.Length} items not directly supported by this Activator path.");
-                            continue;
-                    }
-
-                    if (createdTuple != null)
-                    {
-                        resultList.Add((TValueTuple)createdTuple);
-                    }
-                }
-                return resultList;
             }
 
             public Task<bool> NextResultAsync()
@@ -246,64 +195,6 @@ namespace Snickler.EFCore
             /// <typeparam name="T"></typeparam>
             /// <param name="dr"></param>
             /// <returns>IList&lt;<typeparam name="T"/>&gt;</typeparam></returns>
-            private static IList<T> MapToList<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] T>(DbDataReader dr) where T : new()
-            {
-                var objList = new List<T>();
-                var props = typeof(T).GetProperties(BindingFlags.Instance | BindingFlags.Public).ToList();
-
-                var colMapping = dr.GetColumnSchema()
-                    .Where(x => props.Any(y =>
-                        string.Equals((y.GetCustomAttribute<ColumnAttribute>(true)?.Name ?? y.Name), x.ColumnName, StringComparison.CurrentCultureIgnoreCase)))
-                    .ToDictionary(key => key.ColumnName.ToUpper());
-
-                if (!dr.HasRows)
-                    return objList;
-
-                while (dr.Read())
-                {
-                    var obj = new T();
-                    foreach (var prop in props)
-                    {
-                        var upperName = (prop.GetCustomAttribute<ColumnAttribute>(true)?.Name ?? prop.Name).ToUpper();
-
-                        if (!colMapping.ContainsKey(upperName))
-                            continue;
-
-                        var column = colMapping[upperName];
-
-                        if (column?.ColumnOrdinal == null)
-                            continue;
-
-                        var val = dr.GetValue(column.ColumnOrdinal.Value);
-                        object mappedValue = val;
-
-                        // Handle DateOnly and TimeOnly conversions, not supported by DBDataReader directly
-                        if (val is DateTime dateTimeValue)
-                        {
-                            Type propertyType = Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType;
-    
-                            if (propertyType == typeof(DateOnly))
-                            {
-                                mappedValue = DateOnly.FromDateTime(dateTimeValue);
-                            }
-                            else if (propertyType == typeof(TimeOnly))
-                            {
-                                mappedValue = TimeOnly.FromDateTime(dateTimeValue);
-                            }
-                        }
-                        
-                        prop.SetValue(obj, mappedValue == DBNull.Value ? null : mappedValue);
-                    }
-
-                    objList.Add(obj);
-                }
-
-                return objList;
-            }
-
-            /// <summary>
-            /// Attempts to read the first value of the first row of the result set.
-            /// </summary>
             private static T? MapToValue<T>(DbDataReader dr) where T : struct
             {
                 if (!dr.HasRows)
@@ -315,6 +206,15 @@ namespace Snickler.EFCore
                 }
 
                 return new T?();
+            }
+
+            public void Dispose()
+            {
+                if (!_disposed)
+                {
+                    _reader.Dispose();
+                    _disposed = true;
+                }
             }
         }
 
@@ -337,8 +237,8 @@ namespace Snickler.EFCore
 
             using (command)
             {
-                if (manageConnection && command.Connection.State == ConnectionState.Closed)
-                    command.Connection.Open();
+                if (manageConnection && command.Connection!.State == ConnectionState.Closed)
+                    command.Connection!.Open();
                 try
                 {
                     using (var reader = command.ExecuteReader(commandBehaviour))
@@ -351,7 +251,7 @@ namespace Snickler.EFCore
                 {
                     if (manageConnection)
                     {
-                        command.Connection.Close();
+                        command.Connection!.Close();
                     }
                 }
             }
@@ -377,8 +277,8 @@ namespace Snickler.EFCore
 
             using (command)
             {
-                if (manageConnection && command.Connection.State == System.Data.ConnectionState.Closed)
-                    await command.Connection.OpenAsync(ct).ConfigureAwait(false);
+                if (manageConnection && command.Connection!.State == System.Data.ConnectionState.Closed)
+                    await command.Connection!.OpenAsync(ct).ConfigureAwait(false);
                 try
                 {
                     using (var reader = await command.ExecuteReaderAsync(commandBehaviour, ct)
@@ -392,7 +292,7 @@ namespace Snickler.EFCore
                 {
                     if (manageConnection)
                     {
-                        command.Connection.Close();
+                        command.Connection!.Close();
                     }
                 }
             }
@@ -418,8 +318,8 @@ namespace Snickler.EFCore
 
             using (command)
             {
-                if (manageConnection && command.Connection.State == ConnectionState.Closed)
-                    await command.Connection.OpenAsync(ct).ConfigureAwait(false);
+                if (manageConnection && command.Connection!.State == ConnectionState.Closed)
+                    await command.Connection!.OpenAsync(ct).ConfigureAwait(false);
                 try
                 {
                     using (var reader = await command.ExecuteReaderAsync(commandBehaviour, ct)
@@ -435,7 +335,7 @@ namespace Snickler.EFCore
                 {
                     if (manageConnection)
                     {
-                        command.Connection.Close();
+                        command.Connection!.Close();
                     }
                 }
             }
@@ -453,9 +353,9 @@ namespace Snickler.EFCore
 
             using (command)
             {
-                if (command.Connection.State == ConnectionState.Closed)
+                if (command.Connection!.State == ConnectionState.Closed)
                 {
-                    command.Connection.Open();
+                    command.Connection!.Open();
                 }
 
                 try
@@ -466,7 +366,7 @@ namespace Snickler.EFCore
                 {
                     if (manageConnection)
                     {
-                        command.Connection.Close();
+                        command.Connection!.Close();
                     }
                 }
             }
@@ -488,9 +388,9 @@ namespace Snickler.EFCore
 
             using (command)
             {
-                if (command.Connection.State == ConnectionState.Closed)
+                if (command.Connection!.State == ConnectionState.Closed)
                 {
-                    await command.Connection.OpenAsync(ct).ConfigureAwait(false);
+                    await command.Connection!.OpenAsync(ct).ConfigureAwait(false);
                 }
 
                 try
@@ -501,12 +401,40 @@ namespace Snickler.EFCore
                 {
                     if (manageConnection)
                     {
-                        command.Connection.Close();
+                        command.Connection!.Close();
                     }
                 }
             }
 
             return numberOfRecordsAffected;
+        }
+    }
+
+    // Internal class to trigger source generator for specific types
+    // This class and its methods/nested types are purely to ensure the source generator
+    // is triggered for specific types during compilation. It is not intended for runtime use.
+    internal static class _GeneratorTrigger_
+    {
+        // These methods don't need to be called at runtime if this class is compiled
+        // into the main assembly; the generator analyzes syntax trees.
+        public static void EnsureGeneratorRunsForPocos()
+        {
+            EFExtensions.SprocResults.ReadToList_Dummy<Snickler.EFCore.TestData.SimplePoco>();
+            EFExtensions.SprocResults.ReadToList_Dummy<Snickler.EFCore.TestData.PocoWithAttributes>();
+            EFExtensions.SprocResults.ReadToList_Dummy<Snickler.EFCore.TestData.PocoWithDateAndTime>();
+            EFExtensions.SprocResults.ReadToList_Dummy<Snickler.EFCore.TestData.PocoTypeForEmptySet>();
+            EFExtensions.SprocResults.ReadToList_Dummy<Snickler.EFCore.TestData.PocoTypeForNoRows>();
+        }
+
+        public static void EnsureGeneratorRunsForValueTuples()
+        {
+            EFExtensions.SprocResults.ReadToValueTupleList_Dummy<(int, string)>();
+            EFExtensions.SprocResults.ReadToValueTupleList_Dummy<(int /*Id*/, string /*Value*/)>(); // Names in tuple don't change type identity for typeof
+            EFExtensions.SprocResults.ReadToValueTupleList_Dummy<(string?, decimal)>();
+            // EFExtensions.SprocResults.ReadToValueTupleList_Dummy<(System.DateTime, System.TimeOnly)>(); // Keep if a DateTime/TimeOnly combo is used from System namespace
+            EFExtensions.SprocResults.ReadToValueTupleList_Dummy<System.ValueTuple<int>>(); // Equivalent to (int)
+            EFExtensions.SprocResults.ReadToValueTupleList_Dummy<(System.DateOnly, System.TimeOnly, int)>(); // The one that was generated
+            EFExtensions.SprocResults.ReadToValueTupleList_Dummy<(int, System.DateOnly, System.TimeOnly)>(); // The one from the failing test
         }
     }
 }

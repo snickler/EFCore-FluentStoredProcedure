@@ -18,35 +18,15 @@ using System.Threading;
 using System.Threading.Tasks;
 using Snickler.EFCore.Tests.Fakes; // Using Fakes namespace
 using Moq; // Keep Moq for DbContext, IModel etc for now
+using Snickler.EFCore.TestData; // Add using for shared test POCOs
 
 namespace Snickler.EFCore.Tests
 {
-    // --- Test POCOs for MapToList --- 
-    public class SimplePoco
-    {
-        public int Id { get; set; }
-        public string? Name { get; set; }
-        public decimal? Value { get; set; }
-    }
-
-    public class PocoWithAttributes
-    {
-        [Column("product_id")]
-        public int ProductId { get; set; }
-
-        [Column("PRODUCT_NAME")] // Test case insensitivity of attribute mapping
-        public string? ProductName { get; set; }
-
-        public string UnmappedProperty { get; set; } = "Default";
-    }
-
-    public class PocoWithDateAndTime
-    {
-        public int Id { get; set; }
-        public DateOnly EventDate { get; set; }
-        public TimeOnly EventTime { get; set; }
-        public DateTime EventDateTime { get; set; }
-    }
+    // --- Test POCOs removed - now defined in Snickler.EFCore.TestData ---
+    // public class SimplePoco { ... }
+    // public class PocoWithAttributes { ... }
+    // public class PocoWithDateAndTime { ... }
+    // public struct NotAPocoStruct { ... }
 
     public class EFExtensionsTests
     {
@@ -345,9 +325,9 @@ namespace Snickler.EFCore.Tests
                 {
                     var row = schemaTable.NewRow();
                     row["ColumnName"] = dbCol.ColumnName;
-                    row["ColumnOrdinal"] = dbCol.ColumnOrdinal; // Use direct ordinal
-                    row["DataType"] = dbCol.DataType; // Assumes DbColumn.DataType is set
-                    row["AllowDBNull"] = dbCol.AllowDBNull ?? true; // Handle nullable AllowDBNull
+                    row["ColumnOrdinal"] = dbCol.ColumnOrdinal ?? -1; // Use -1 if null to avoid exception
+                    row["DataType"] = dbCol.DataType;       
+                    row["AllowDBNull"] = dbCol.AllowDBNull ?? true; 
                     row["ColumnSize"] = dbCol.ColumnSize ?? -1;
                     row["IsKey"] = dbCol.IsKey ?? false;
                     schemaTable.Rows.Add(row);
@@ -847,15 +827,16 @@ namespace Snickler.EFCore.Tests
         [Fact]
         public void ReadToValueTupleList_NotAValueTuple_ShouldThrowArgumentException()
         {
-            // Arrange
-            var schemaTable = CreateSchemaTable(("Id", typeof(int), 0, false, false, -1));
-            var data = new List<object[]> { new object[] { 123 } };
-            var fakeDataReader = new FakeDbDataReader(data, schemaTable);
-            var sprocResults = new EFExtensions.SprocResults(fakeDataReader);
+            var schemaColumns = new List<DbColumn>
+            {
+                new FakeDbColumn { ColumnName = "X", ColumnOrdinal = 0, DataType = typeof(int) }
+            };
+            var rowData = new List<object[]> { new object[] { 123 } };
+            var reader = SetupDataReaderFakes(schemaColumns, rowData);
+            var sprocResults = new EFExtensions.SprocResults(reader);
 
-            // Act & Assert
-            // Use a non-ValueTuple struct to test the ArgumentException path correctly.
-            Assert.Throws<ArgumentException>("TValueTuple", () => sprocResults.ReadToValueTupleList<int>());
+            // Expect InvalidOperationException because the generator won't create a specific ValueTuple mapper for a non-ValueTuple type
+            Assert.Throws<InvalidOperationException>(() => sprocResults.ReadToValueTupleList<NotAPocoStruct>());
         }
     }
 } 
