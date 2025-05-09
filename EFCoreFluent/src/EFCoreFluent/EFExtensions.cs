@@ -1,17 +1,21 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿#nullable enable
+
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Data;
 using System.Data.Common;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Runtime.CompilerServices;
 
 namespace Snickler.EFCore
 {
-    public static class EFExtensions
+    public static partial class EFExtensions
     {
         /// <summary>
         /// Creates an initial DbCommand object based on a stored procedure name
@@ -29,8 +33,8 @@ namespace Snickler.EFCore
 
             if (prependDefaultSchema)
             {
-                var schemaName = context.Model["DefaultSchema"];
-                if (schemaName != null)
+                var schemaName = context.Model.GetDefaultSchema();
+                if (!string.IsNullOrEmpty(schemaName))
                 {
                     storedProcName = $"{schemaName}.{storedProcName}";
                 }
@@ -51,14 +55,21 @@ namespace Snickler.EFCore
         /// <param name="configureParam"></param>
         /// <returns></returns>
         public static DbCommand WithSqlParam(this DbCommand cmd, string paramName, object paramValue,
-            Action<DbParameter> configureParam = null)
+            Action<DbParameter>? configureParam = null)
         {
             if (string.IsNullOrEmpty(cmd.CommandText) && cmd.CommandType != System.Data.CommandType.StoredProcedure)
                 throw new InvalidOperationException("Call LoadStoredProc before using this method");
 
             var param = cmd.CreateParameter();
             param.ParameterName = paramName;
-            param.Value = paramValue ?? DBNull.Value;
+            if (paramValue == null)
+            {
+                param.Value = DBNull.Value;
+            }
+            else
+            {
+                param.Value = paramValue;
+            }
             configureParam?.Invoke(param);
             cmd.Parameters.Add(param);
             return cmd;
@@ -72,7 +83,7 @@ namespace Snickler.EFCore
         /// <param name="configureParam"></param>
         /// <returns></returns>
         public static DbCommand WithSqlParam(this DbCommand cmd, string paramName,
-            Action<DbParameter> configureParam = null)
+            Action<DbParameter>? configureParam = null)
         {
             if (string.IsNullOrEmpty(cmd.CommandText) && cmd.CommandType != CommandType.StoredProcedure)
                 throw new InvalidOperationException("Call LoadStoredProc before using this method");
@@ -118,18 +129,44 @@ namespace Snickler.EFCore
             return cmd;
         }
 
-        public class SprocResults
+        public partial class SprocResults : IDisposable
         {
             private readonly DbDataReader _reader;
+            private readonly bool _closeReaderOnDispose;
+            private bool _disposed = false;
 
-            public SprocResults(DbDataReader reader)
+            // Static dummy methods for generator triggering
+            public static void ReadToList_Dummy<T>() where T : new() { }
+            public static void ReadToValueTupleList_Dummy<TValueTuple>() where TValueTuple : struct { }
+
+            public SprocResults(DbDataReader reader, bool closeReaderOnDispose = true)
             {
-                _reader = reader;
+                _reader = reader ?? throw new ArgumentNullException(nameof(reader));
+                _closeReaderOnDispose = closeReaderOnDispose;
             }
 
+            [RequiresUnreferencedCode("SprocResults.ReadToList<T> uses reflection. For AOT compatibility, ensure the source generator is active for type T, or use a T that is appropriately annotated.")]
             public IList<T> ReadToList<T>() where T : new()
             {
-                return MapToList<T>(_reader);
+                // This method will be implemented by the source generator in a partial class.
+                // If the generator doesn't run or doesn't find an invocation for T, this will lead to a compile error
+                // or a runtime error if this base method had a fallback (which it currently doesn't explicitly).
+                return GeneratedReadToListDispatch<T>();
+            }
+
+            [RequiresUnreferencedCode("SprocResults.ReadToValueTupleList<TValueTuple> uses reflection. For AOT compatibility, ensure the source generator is active for type TValueTuple, or use a TValueTuple that is appropriately annotated.")]
+            public IList<TValueTuple> ReadToValueTupleList<TValueTuple>() where TValueTuple : struct
+            {
+                // This method will be implemented by the source generator in a partial class.
+                return GeneratedReadToValueTupleListDispatch<TValueTuple>();
+            }
+
+            [RequiresUnreferencedCode("DataTable.Load uses reflection and is not AOT compatible.")]
+            public DataTable ReadToDataTable()
+            {
+                var dataTable = new DataTable();
+                dataTable.Load(_reader);
+                return dataTable;
             }
 
             public T? ReadToValue<T>() where T : struct
@@ -157,64 +194,7 @@ namespace Snickler.EFCore
             /// </summary>
             /// <typeparam name="T"></typeparam>
             /// <param name="dr"></param>
-            /// <returns>IList&lt;<typeparam name="T">&gt;</typeparam></returns>
-            private static IList<T> MapToList<T>(DbDataReader dr) where T : new()
-            {
-                var objList = new List<T>();
-                var props = typeof(T).GetRuntimeProperties().ToList();
-
-                var colMapping = dr.GetColumnSchema()
-                    .Where(x => props.Any(y =>
-                        string.Equals((y.GetCustomAttribute<ColumnAttribute>(true)?.Name ?? y.Name), x.ColumnName, StringComparison.CurrentCultureIgnoreCase)))
-                    .ToDictionary(key => key.ColumnName.ToUpper());
-
-                if (!dr.HasRows)
-                    return objList;
-
-                while (dr.Read())
-                {
-                    var obj = new T();
-                    foreach (var prop in props)
-                    {
-                        var upperName = (prop.GetCustomAttribute<ColumnAttribute>(true)?.Name ?? prop.Name).ToUpper();
-
-                        if (!colMapping.ContainsKey(upperName))
-                            continue;
-
-                        var column = colMapping[upperName];
-
-                        if (column?.ColumnOrdinal == null)
-                            continue;
-
-                        var val = dr.GetValue(column.ColumnOrdinal.Value);
-
-                        // Handle DateOnly and TimeOnly conversions, not supported by DBDataReader
-                        if (columnValue is DateTime dateTime)
-                        {
-                            Type propertyType = Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType;
-    
-                            if (propertyType == typeof(DateOnly))
-                            {
-                                columnValue = DateOnly.FromDateTime(dateTime);
-                            }
-                            else if (propertyType == typeof(TimeOnly))
-                            {
-                                columnValue = TimeOnly.FromDateTime(dateTime);
-                            }
-                        }
-                        
-                        prop.SetValue(obj, val == DBNull.Value ? null : val);
-                    }
-
-                    objList.Add(obj);
-                }
-
-                return objList;
-            }
-
-            /// <summary>
-            /// Attempts to read the first value of the first row of the result set.
-            /// </summary>
+            /// <returns>IList&lt;<typeparam name="T"/>&gt;</typeparam></returns>
             private static T? MapToValue<T>(DbDataReader dr) where T : struct
             {
                 if (!dr.HasRows)
@@ -226,6 +206,15 @@ namespace Snickler.EFCore
                 }
 
                 return new T?();
+            }
+
+            public void Dispose()
+            {
+                if (!_disposed)
+                {
+                    _reader.Dispose();
+                    _disposed = true;
+                }
             }
         }
 
@@ -241,28 +230,23 @@ namespace Snickler.EFCore
             CommandBehavior commandBehaviour = CommandBehavior.Default,
             bool manageConnection = true)
         {
-            if (handleResults == null)
-            {
-                throw new ArgumentNullException(nameof(handleResults));
-            }
+            ArgumentNullException.ThrowIfNull(handleResults);
 
             using (command)
             {
-                if (manageConnection && command.Connection.State == ConnectionState.Closed)
-                    command.Connection.Open();
+                if (manageConnection && command.Connection!.State == ConnectionState.Closed)
+                    command.Connection!.Open();
                 try
                 {
-                    using (var reader = command.ExecuteReader(commandBehaviour))
-                    {
-                        var sprocResults = new SprocResults(reader);
-                        handleResults(sprocResults);
-                    }
+                    using var reader = command.ExecuteReader(commandBehaviour);
+                    var sprocResults = new SprocResults(reader);
+                    handleResults(sprocResults);
                 }
                 finally
                 {
                     if (manageConnection)
                     {
-                        command.Connection.Close();
+                        command.Connection!.Close();
                     }
                 }
             }
@@ -281,29 +265,24 @@ namespace Snickler.EFCore
             System.Data.CommandBehavior commandBehaviour = System.Data.CommandBehavior.Default,
             CancellationToken ct = default, bool manageConnection = true)
         {
-            if (handleResults == null)
-            {
-                throw new ArgumentNullException(nameof(handleResults));
-            }
+            ArgumentNullException.ThrowIfNull(handleResults);
 
             using (command)
             {
-                if (manageConnection && command.Connection.State == System.Data.ConnectionState.Closed)
-                    await command.Connection.OpenAsync(ct).ConfigureAwait(false);
+                if (manageConnection && command.Connection!.State == System.Data.ConnectionState.Closed)
+                    await command.Connection!.OpenAsync(ct).ConfigureAwait(false);
                 try
                 {
-                    using (var reader = await command.ExecuteReaderAsync(commandBehaviour, ct)
-                        .ConfigureAwait(false))
-                    {
-                        var sprocResults = new SprocResults(reader);
-                        handleResults(sprocResults);
-                    }
+                    using var reader = await command.ExecuteReaderAsync(commandBehaviour, ct)
+                        .ConfigureAwait(false);
+                    var sprocResults = new SprocResults(reader);
+                    handleResults(sprocResults);
                 }
                 finally
                 {
                     if (manageConnection)
                     {
-                        command.Connection.Close();
+                        command.Connection!.Close();
                     }
                 }
             }
@@ -322,31 +301,26 @@ namespace Snickler.EFCore
             CommandBehavior commandBehaviour = CommandBehavior.Default,
             CancellationToken ct = default, bool manageConnection = true, params Action<SprocResults>[] resultActions)
         {
-            if (resultActions == null)
-            {
-                throw new ArgumentNullException(nameof(resultActions));
-            }
+            ArgumentNullException.ThrowIfNull(resultActions);
 
             using (command)
             {
-                if (manageConnection && command.Connection.State == ConnectionState.Closed)
-                    await command.Connection.OpenAsync(ct).ConfigureAwait(false);
+                if (manageConnection && command.Connection!.State == ConnectionState.Closed)
+                    await command.Connection!.OpenAsync(ct).ConfigureAwait(false);
                 try
                 {
-                    using (var reader = await command.ExecuteReaderAsync(commandBehaviour, ct)
-                        .ConfigureAwait(false))
-                    {
-                        var sprocResults = new SprocResults(reader);
+                    using var reader = await command.ExecuteReaderAsync(commandBehaviour, ct)
+                        .ConfigureAwait(false);
+                    var sprocResults = new SprocResults(reader);
 
-                        foreach (var t in resultActions)
-                            t(sprocResults);
-                    }
+                    foreach (var t in resultActions)
+                        t(sprocResults);
                 }
                 finally
                 {
                     if (manageConnection)
                     {
-                        command.Connection.Close();
+                        command.Connection!.Close();
                     }
                 }
             }
@@ -364,9 +338,9 @@ namespace Snickler.EFCore
 
             using (command)
             {
-                if (command.Connection.State == ConnectionState.Closed)
+                if (command.Connection!.State == ConnectionState.Closed)
                 {
-                    command.Connection.Open();
+                    command.Connection!.Open();
                 }
 
                 try
@@ -377,7 +351,7 @@ namespace Snickler.EFCore
                 {
                     if (manageConnection)
                     {
-                        command.Connection.Close();
+                        command.Connection!.Close();
                     }
                 }
             }
@@ -399,9 +373,9 @@ namespace Snickler.EFCore
 
             using (command)
             {
-                if (command.Connection.State == ConnectionState.Closed)
+                if (command.Connection!.State == ConnectionState.Closed)
                 {
-                    await command.Connection.OpenAsync(ct).ConfigureAwait(false);
+                    await command.Connection!.OpenAsync(ct).ConfigureAwait(false);
                 }
 
                 try
@@ -412,12 +386,44 @@ namespace Snickler.EFCore
                 {
                     if (manageConnection)
                     {
-                        command.Connection.Close();
+                        command.Connection!.Close();
                     }
                 }
             }
 
             return numberOfRecordsAffected;
+        }
+    }
+
+    // Internal class to trigger source generator for specific types
+    // This class and its methods/nested types are purely to ensure the source generator
+    // is triggered for specific types during compilation. It is not intended for runtime use.
+    internal static class _GeneratorTrigger_
+    {
+        // These methods don't need to be called at runtime if this class is compiled
+        // into the main assembly; the generator analyzes syntax trees.
+        public static void EnsureGeneratorRunsForPocos()
+        {
+#pragma warning disable SG006 // Generator Info
+            EFExtensions.SprocResults.ReadToList_Dummy<Snickler.EFCore.TestData.SimplePoco>();
+
+            EFExtensions.SprocResults.ReadToList_Dummy<Snickler.EFCore.TestData.PocoWithAttributes>();
+            EFExtensions.SprocResults.ReadToList_Dummy<Snickler.EFCore.TestData.PocoWithDateAndTime>();
+            EFExtensions.SprocResults.ReadToList_Dummy<Snickler.EFCore.TestData.PocoTypeForEmptySet>();
+            EFExtensions.SprocResults.ReadToList_Dummy<Snickler.EFCore.TestData.PocoTypeForNoRows>();
+#pragma warning restore SG006 // Generator Info
+        }
+
+        public static void EnsureGeneratorRunsForValueTuples()
+        {
+#pragma warning disable SG007 // Generator Info
+            EFExtensions.SprocResults.ReadToValueTupleList_Dummy<(int, string)>();
+            EFExtensions.SprocResults.ReadToValueTupleList_Dummy<(int /*Id*/, string /*Value*/)>(); // Names in tuple don't change type identity for typeof
+            EFExtensions.SprocResults.ReadToValueTupleList_Dummy<(string?, decimal)>();
+            EFExtensions.SprocResults.ReadToValueTupleList_Dummy<System.ValueTuple<int>>(); // Equivalent to (int)
+            EFExtensions.SprocResults.ReadToValueTupleList_Dummy<(System.DateOnly, System.TimeOnly, int)>(); // The one that was generated
+            EFExtensions.SprocResults.ReadToValueTupleList_Dummy<(int, System.DateOnly, System.TimeOnly)>(); // The one from the failing test
+#pragma warning restore SG007 // Generator Info
         }
     }
 }
