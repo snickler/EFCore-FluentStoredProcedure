@@ -11,7 +11,7 @@ jobs:
     strategy:
       matrix:
         # os: [ubuntu-latest, windows-latest, windows-11-arm]
-        os: [windows-latest, windows-11-arm] # Target x64 and arm64 on Windows
+        os: [windows-latest, windows-11-arm, ubuntu-latest, macos-latest] # Target x64 and arm64 on Windows, added ubuntu-latest and macos-latest
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -21,16 +21,34 @@ jobs:
       with:
         dotnet-version: '9.0.x'
     - name: Restore dependencies
-      run: dotnet restore EFCoreFluent
+      run: dotnet restore EFCoreFluent # Restores for the whole solution
     - name: Build
-      run: dotnet build EFCoreFluent --no-restore -c Release
+      # Build the solution; specific RID compilation for packing will be handled by the 'pack' job
+      run: dotnet build EFCoreFluent --no-restore -c Release 
     - name: Test
+      # Test the solution; this will run tests against the built assemblies
       run: dotnet test EFCoreFluent/EFCoreFluent.sln --no-build -c Release
-    - name: Publish Artifact
-      if: matrix.os == 'ubuntu-latest' && matrix.dotnet-version == '8.0.x'
+
+  pack_and_publish:
+    needs: build # Ensure build and tests pass before packing
+    runs-on: windows-11-arm # Packing can be done on a single OS
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup .NET 9
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+    # It's good practice to restore the specific project you are packing if it has unique dependencies or tools
+    - name: Restore Snickler.EFCore Project (for packing)
+      run: dotnet restore EFCoreFluent/src/EFCoreFluent/Snickler.EFCore.csproj
+    - name: Create NuGet Package
+      # This pack command will build for TFM/RID combinations specified in the csproj (net8/9, win-x64/arm64)
+      run: dotnet pack EFCoreFluent/src/EFCoreFluent/Snickler.EFCore.csproj -c Release -o ./dist
+    - name: Upload NuGet Package Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: Package
-        path: "EFCoreFluent/src/EFCoreFluent/bin/Release/**.nupkg"
+        name: NuGetPackage
+        path: ./dist/*.nupkg
     
     
