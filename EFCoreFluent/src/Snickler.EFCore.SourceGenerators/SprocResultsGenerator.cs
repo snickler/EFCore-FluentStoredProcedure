@@ -83,9 +83,6 @@ namespace Snickler.EFCore.SourceGenerators
 
         private static void Execute(Compilation compilation, ImmutableArray<InvocationExpressionSyntax> invocations, SourceProductionContext context)
         {
-            // Unconditional diagnostic to ensure the generator runs for the consumer project
-            context.ReportDiagnostic(Diagnostic.Create(new DiagnosticDescriptor("SG999", "Generator Info", $"SprocResultsGenerator Execute method entered for compilation: {compilation.AssemblyName}", "SourceGenerator", DiagnosticSeverity.Warning, true), Location.None)); 
-
             try
             {
                 if (invocations.IsDefaultOrEmpty)
@@ -379,7 +376,7 @@ namespace Snickler.EFCore.SourceGenerators
         private static void GenerateValueTupleMapperMethod(StringBuilder sb, ITypeSymbol tupleTypeSymbol, SourceProductionContext context)
         {
             // Ensure it's a tuple-like INamedTypeSymbol we can work with
-            if (!(tupleTypeSymbol is INamedTypeSymbol namedTupleType))
+            if (tupleTypeSymbol is not INamedTypeSymbol namedTupleType)
             {
                 context.ReportDiagnostic(Diagnostic.Create(new DiagnosticDescriptor("SG017A", "Generator Error", $"GenerateValueTupleMapperMethod called with non-INamedTypeSymbol: {tupleTypeSymbol.ToDisplayString()}", "SourceGenerator", DiagnosticSeverity.Error, true), Location.None));
                 return;

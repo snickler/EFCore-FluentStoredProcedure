@@ -230,10 +230,7 @@ namespace Snickler.EFCore
             CommandBehavior commandBehaviour = CommandBehavior.Default,
             bool manageConnection = true)
         {
-            if (handleResults == null)
-            {
-                throw new ArgumentNullException(nameof(handleResults));
-            }
+            ArgumentNullException.ThrowIfNull(handleResults);
 
             using (command)
             {
@@ -241,11 +238,9 @@ namespace Snickler.EFCore
                     command.Connection!.Open();
                 try
                 {
-                    using (var reader = command.ExecuteReader(commandBehaviour))
-                    {
-                        var sprocResults = new SprocResults(reader);
-                        handleResults(sprocResults);
-                    }
+                    using var reader = command.ExecuteReader(commandBehaviour);
+                    var sprocResults = new SprocResults(reader);
+                    handleResults(sprocResults);
                 }
                 finally
                 {
@@ -270,10 +265,7 @@ namespace Snickler.EFCore
             System.Data.CommandBehavior commandBehaviour = System.Data.CommandBehavior.Default,
             CancellationToken ct = default, bool manageConnection = true)
         {
-            if (handleResults == null)
-            {
-                throw new ArgumentNullException(nameof(handleResults));
-            }
+            ArgumentNullException.ThrowIfNull(handleResults);
 
             using (command)
             {
@@ -281,12 +273,10 @@ namespace Snickler.EFCore
                     await command.Connection!.OpenAsync(ct).ConfigureAwait(false);
                 try
                 {
-                    using (var reader = await command.ExecuteReaderAsync(commandBehaviour, ct)
-                        .ConfigureAwait(false))
-                    {
-                        var sprocResults = new SprocResults(reader);
-                        handleResults(sprocResults);
-                    }
+                    using var reader = await command.ExecuteReaderAsync(commandBehaviour, ct)
+                        .ConfigureAwait(false);
+                    var sprocResults = new SprocResults(reader);
+                    handleResults(sprocResults);
                 }
                 finally
                 {
@@ -311,10 +301,7 @@ namespace Snickler.EFCore
             CommandBehavior commandBehaviour = CommandBehavior.Default,
             CancellationToken ct = default, bool manageConnection = true, params Action<SprocResults>[] resultActions)
         {
-            if (resultActions == null)
-            {
-                throw new ArgumentNullException(nameof(resultActions));
-            }
+            ArgumentNullException.ThrowIfNull(resultActions);
 
             using (command)
             {
@@ -322,14 +309,12 @@ namespace Snickler.EFCore
                     await command.Connection!.OpenAsync(ct).ConfigureAwait(false);
                 try
                 {
-                    using (var reader = await command.ExecuteReaderAsync(commandBehaviour, ct)
-                        .ConfigureAwait(false))
-                    {
-                        var sprocResults = new SprocResults(reader);
+                    using var reader = await command.ExecuteReaderAsync(commandBehaviour, ct)
+                        .ConfigureAwait(false);
+                    var sprocResults = new SprocResults(reader);
 
-                        foreach (var t in resultActions)
-                            t(sprocResults);
-                    }
+                    foreach (var t in resultActions)
+                        t(sprocResults);
                 }
                 finally
                 {
@@ -419,22 +404,26 @@ namespace Snickler.EFCore
         // into the main assembly; the generator analyzes syntax trees.
         public static void EnsureGeneratorRunsForPocos()
         {
+#pragma warning disable SG006 // Generator Info
             EFExtensions.SprocResults.ReadToList_Dummy<Snickler.EFCore.TestData.SimplePoco>();
+
             EFExtensions.SprocResults.ReadToList_Dummy<Snickler.EFCore.TestData.PocoWithAttributes>();
             EFExtensions.SprocResults.ReadToList_Dummy<Snickler.EFCore.TestData.PocoWithDateAndTime>();
             EFExtensions.SprocResults.ReadToList_Dummy<Snickler.EFCore.TestData.PocoTypeForEmptySet>();
             EFExtensions.SprocResults.ReadToList_Dummy<Snickler.EFCore.TestData.PocoTypeForNoRows>();
+#pragma warning restore SG006 // Generator Info
         }
 
         public static void EnsureGeneratorRunsForValueTuples()
         {
+#pragma warning disable SG007 // Generator Info
             EFExtensions.SprocResults.ReadToValueTupleList_Dummy<(int, string)>();
             EFExtensions.SprocResults.ReadToValueTupleList_Dummy<(int /*Id*/, string /*Value*/)>(); // Names in tuple don't change type identity for typeof
             EFExtensions.SprocResults.ReadToValueTupleList_Dummy<(string?, decimal)>();
-            // EFExtensions.SprocResults.ReadToValueTupleList_Dummy<(System.DateTime, System.TimeOnly)>(); // Keep if a DateTime/TimeOnly combo is used from System namespace
             EFExtensions.SprocResults.ReadToValueTupleList_Dummy<System.ValueTuple<int>>(); // Equivalent to (int)
             EFExtensions.SprocResults.ReadToValueTupleList_Dummy<(System.DateOnly, System.TimeOnly, int)>(); // The one that was generated
             EFExtensions.SprocResults.ReadToValueTupleList_Dummy<(int, System.DateOnly, System.TimeOnly)>(); // The one from the failing test
+#pragma warning restore SG007 // Generator Info
         }
     }
 }
