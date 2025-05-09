@@ -1,9 +1,10 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="MSBuild.Sdk.Extras/3.0.44">
 	<PropertyGroup>
 		<TargetFrameworks>net8.0;net9.0</TargetFrameworks>
 		<RuntimeIdentifiers>win-x64;win-arm64;linux-x64;linux-arm64;osx-x64;osx-arm64</RuntimeIdentifiers>
 		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+		<ExtrasBuildEachRuntimeIdentifier>true</ExtrasBuildEachRuntimeIdentifier>
 		<AssemblyVersion>3.0.0.0</AssemblyVersion>
 		<FileVersion>3.0.0.0</FileVersion>
 		<PackageTags>snickler.efcore,entityframeworkcore,fluent,storedprocedure</PackageTags>
@@ -18,8 +19,7 @@
 		<PackageId>Snickler.EFCore</PackageId>
 		<Product>Snickler.EFCore</Product>
 		<IsAotCompatible>true</IsAotCompatible>
-		<PublishAot>true</PublishAot>
-		<Platforms>AnyCPU;ARM64</Platforms>
+		<Platforms>AnyCPU;x64;ARM64</Platforms>
 		<EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
 	</PropertyGroup>
 
